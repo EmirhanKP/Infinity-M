@@ -1,0 +1,17 @@
+{
+  "name": "Reloop — Snap it. Score it. Loop it.",
+  "short_name": "Reloop",
+  "description": "Turn any item into a circular-economy decision in 3 seconds.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3faf5",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
