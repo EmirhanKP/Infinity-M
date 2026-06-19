@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Logo from "@/components/Logo";
 import type { DashboardData } from "@/lib/clientTypes";
 import { ACTION_META } from "@/lib/ui";
 import type { ActionType } from "@/lib/ai/loopcard";
@@ -19,13 +20,16 @@ export default function Dashboard() {
   return (
     <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-6">
       <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-emerald-900">
-            Reloop · Material-Flow & DPP
-          </h1>
-          <p className="text-sm text-emerald-700/70">
-            Anonymized end-of-life data crowdsourced from consumer scans — the B2B layer for municipalities & EPR schemes.
-          </p>
+        <div className="flex items-center gap-3">
+          <Logo className="h-9 w-9" />
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-[#101817]">
+              <span className="lowercase">reloop</span> · Material-Flow &amp; DPP
+            </h1>
+            <p className="text-sm text-emerald-700/70">
+              Anonymized end-of-life data crowdsourced from consumer scans — the B2B layer for municipalities &amp; EPR schemes.
+            </p>
+          </div>
         </div>
         <Link
           href="/"

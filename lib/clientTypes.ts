@@ -50,3 +50,43 @@ export interface RepairStepResult {
   done: boolean;
   encouragement: string;
 }
+
+export interface MultiScanItem {
+  scanId?: string;
+  label: string;
+  material: string;
+  condition_score: number;
+  /** Normalized 0..1 box over the source image. */
+  box: { x: number; y: number; w: number; h: number };
+  best_action: ActionType;
+  instruction: string;
+  local_hint: string;
+  co2_saved_kg: number;
+  resale_low: number;
+  resale_high: number;
+}
+
+export interface MultiScanResult {
+  items: MultiScanItem[];
+  source: "live" | "mock" | "mock-fallback";
+}
+
+export interface ListingResult {
+  title: string;
+  description: string;
+  price_eur: number;
+  category: string;
+  marketplaceUrl: string;
+}
+
+export interface PartResult {
+  part_name: string;
+  price_eur: number;
+  note: string;
+  links: DeepLink[];
+}
+
+export interface AskResult {
+  answer: string;
+  sources: DeepLink[];
+}

@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type { ActionType, LoopCard } from "./ai/loopcard";
+import type { MultiScanItem } from "./clientTypes";
 
 // Lightweight JSON-file store. Zero native deps, runs anywhere, and gives the
 // B2B dashboard real aggregates from real scans. Swap for Postgres/Prisma later
@@ -25,6 +26,8 @@ export interface ScanRecord {
   dppMaterial: string;
   dppRecyclability: string;
   dppRecycledContentPct: number;
+  recoverableValueEur: number;
+  recoverableSummary: string;
 }
 
 export interface ConfirmRecord {
@@ -84,6 +87,8 @@ function seed(): DbShape {
     dppMaterial: s.dppMaterial!,
     dppRecyclability: s.dppRecyclability!,
     dppRecycledContentPct: s.dppRecycledContentPct!,
+    recoverableValueEur: 0,
+    recoverableSummary: "",
   }));
   return {
     scans,
@@ -151,10 +156,47 @@ export async function addScan(
     dppMaterial: card.dpp_fields.material,
     dppRecyclability: card.dpp_fields.recyclability,
     dppRecycledContentPct: card.dpp_fields.est_recycled_content_pct,
+    recoverableValueEur: card.recoverable_materials?.est_value_eur ?? 0,
+    recoverableSummary: card.recoverable_materials?.summary ?? "",
   };
   db.scans.push(rec);
   await persist();
   return rec;
+}
+
+export async function addScanLite(
+  sessionId: string,
+  item: MultiScanItem,
+  municipalityCode: string,
+): Promise<ScanRecord> {
+  const db = await load();
+  const rec: ScanRecord = {
+    id: id("scan"),
+    sessionId,
+    createdAt: Date.now(),
+    itemName: item.label,
+    material: item.material,
+    conditionScore: item.condition_score,
+    bestActionType: item.best_action,
+    resaleLowEur: item.resale_low,
+    resaleHighEur: item.resale_high,
+    co2SavedKg: item.co2_saved_kg,
+    recyclabilityNote: item.instruction,
+    municipalityCode,
+    dppMaterial: item.material,
+    dppRecyclability: "AI-estimated",
+    dppRecycledContentPct: 0,
+    recoverableValueEur: 0,
+    recoverableSummary: "",
+  };
+  db.scans.push(rec);
+  await persist();
+  return rec;
+}
+
+export async function getScanById(scanId: string): Promise<ScanRecord | null> {
+  const db = await load();
+  return db.scans.find((s) => s.id === scanId) ?? null;
 }
 
 const POINTS: Record<ActionType, number> = {

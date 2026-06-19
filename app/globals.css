@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3faf5;
-  --foreground: #0d1b14;
+  /* Reloop brand */
+  --background: #f5f7f3; /* off-white */
+  --foreground: #101817; /* charcoal green */
 }
 
 @theme inline {
@@ -10,6 +11,25 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/* Brand tokens + mint-anchored emerald ramp so existing emerald-* utilities
+   adopt the Reloop palette (Electric Mint #55E6A5 / Charcoal Green #101817). */
+@theme {
+  --color-brand: #55e6a5;
+  --color-brand-dark: #101817;
+  --color-cream: #f5f7f3;
+
+  --color-emerald-50: #ecfbf3;
+  --color-emerald-100: #d2f6e4;
+  --color-emerald-200: #aeefcf;
+  --color-emerald-300: #86e7b8;
+  --color-emerald-400: #5fe3a8;
+  --color-emerald-500: #2fd08c;
+  --color-emerald-600: #16b377;
+  --color-emerald-700: #0e8e5e;
+  --color-emerald-800: #0a6b47;
+  --color-emerald-900: #101817;
 }
 
 html,
@@ -22,8 +42,8 @@ body {
 /* Consistent light theme for the demo regardless of OS dark mode. */
 body {
   background-image:
-    radial-gradient(1100px 600px at 100% -10%, #d9f4e2 0%, rgba(217, 244, 226, 0) 60%),
-    radial-gradient(900px 500px at -10% 0%, #e7f0ff 0%, rgba(231, 240, 255, 0) 55%);
+    radial-gradient(1100px 600px at 100% -10%, #c9f5dd 0%, rgba(201, 245, 221, 0) 60%),
+    radial-gradient(900px 500px at -10% 0%, #e2efe8 0%, rgba(226, 239, 232, 0) 55%);
   background-attachment: fixed;
 }
 

@@ -5,8 +5,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import CameraCapture, { type Capture } from "@/components/CameraCapture";
 import LoopCard from "@/components/LoopCard";
+import MultiScanView, { type MultiItem } from "@/components/MultiScanView";
 import StreakBanner from "@/components/StreakBanner";
+import Logo from "@/components/Logo";
 import RepairCoach from "@/components/RepairCoach";
+import ImpactCard from "@/components/ImpactCard";
+import ImpactTranslator from "@/components/ImpactTranslator";
 import type { ScanResponse, StreakValues } from "@/lib/clientTypes";
 import type { ActionType } from "@/lib/ai/loopcard";
 
@@ -16,6 +20,12 @@ const ZERO_STREAK: StreakValues = {
   weeklyWasteDivertedKg: 0,
   currentStreakDays: 0,
 };
+
+interface MultiState {
+  items: MultiItem[];
+  source: string;
+  municipality: string;
+}
 
 function useSessionId() {
   const [id, setId] = useState<string>("anon");
@@ -32,12 +42,18 @@ function useSessionId() {
 
 export default function Home() {
   const sessionId = useSessionId();
-  const [phase, setPhase] = useState<"scan" | "scanning" | "result">("scan");
+  const [phase, setPhase] = useState<"scan" | "scanning" | "result" | "result-multi">("scan");
   const [scan, setScan] = useState<ScanResponse | null>(null);
+  const [multi, setMulti] = useState<MultiState | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [lastImage, setLastImage] = useState<string>("");
+  const [lastMedia, setLastMedia] = useState<string>("image/jpeg");
   const [streak, setStreak] = useState<StreakValues>(ZERO_STREAK);
   const [toast, setToast] = useState<string | null>(null);
   const [repairFor, setRepairFor] = useState<string | null>(null);
+  const [showImpact, setShowImpact] = useState(false);
+  const [showTranslator, setShowTranslator] = useState(false);
+  const [refining, setRefining] = useState(false);
 
   useEffect(() => {
     if (sessionId === "anon") return;
@@ -50,33 +66,40 @@ export default function Home() {
   async function handleCapture(c: Capture) {
     setPhase("scanning");
     setPreviewUrl(c.previewUrl);
+    setLastImage(c.imageBase64);
+    setLastMedia(c.mediaType);
     try {
-      const res = await fetch("/api/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageBase64: c.imageBase64,
-          mediaType: c.mediaType,
-          sessionId,
-          hint: c.hint,
-        }),
-      });
-      const json = (await res.json()) as ScanResponse;
-      setScan(json);
-      setPhase("result");
+      if (c.mode === "pile") {
+        const res = await fetch("/api/scan-multi", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageBase64: c.imageBase64, mediaType: c.mediaType, sessionId, hint: c.hint }),
+        });
+        const json = await res.json();
+        setMulti({ items: json.items, source: json.source, municipality: json.municipality });
+        setPhase("result-multi");
+      } else {
+        const res = await fetch("/api/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageBase64: c.imageBase64, mediaType: c.mediaType, sessionId, hint: c.hint }),
+        });
+        const json = (await res.json()) as ScanResponse;
+        setScan(json);
+        setPhase("result");
+      }
     } catch {
       setToast("Scan failed — try again");
       setPhase("scan");
     }
   }
 
-  async function handleConfirm(actionType: ActionType, co2: number) {
-    if (!scan) return;
+  async function handleConfirm(scanId: string, actionType: ActionType, co2: number) {
     try {
       const res = await fetch("/api/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, scanId: scan.scanId, actionType, co2SavedKg: co2 }),
+        body: JSON.stringify({ sessionId, scanId, actionType, co2SavedKg: co2 }),
       });
       const json = await res.json();
       const gained = json.streak.loopPoints - streak.loopPoints;
@@ -87,6 +110,31 @@ export default function Home() {
     }
   }
 
+  async function handleRefine(correction: string) {
+    if (!scan || !correction) return;
+    setRefining(true);
+    try {
+      const res = await fetch("/api/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: lastImage,
+          mediaType: lastMedia,
+          sessionId,
+          correction,
+          currentCard: scan.card,
+        }),
+      });
+      const json = (await res.json()) as ScanResponse;
+      setScan(json);
+      showToast("Refined with your model ✓");
+    } catch {
+      showToast("Refine failed — try again");
+    } finally {
+      setRefining(false);
+    }
+  }
+
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 2200);
@@ -94,6 +142,7 @@ export default function Home() {
 
   function scanNext() {
     setScan(null);
+    setMulti(null);
     setPreviewUrl("");
     setPhase("scan");
   }
@@ -102,33 +151,39 @@ export default function Home() {
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 px-4 py-5">
       {/* Header */}
       <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-emerald-900">
-            Re<span className="text-emerald-500">loop</span>
-          </h1>
-          <p className="text-xs text-emerald-700/70">Snap it. Score it. Loop it.</p>
+        <div className="flex items-center gap-2">
+          <Logo className="h-10 w-10" />
+          <div>
+            <h1 className="text-2xl font-extrabold lowercase tracking-tight text-[#101817]">reloop</h1>
+            <p className="text-xs text-[#101817]/60">Snap it. Score it. Loop it.</p>
+          </div>
         </div>
-        <Link
-          href="/dashboard"
-          className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
-        >
-          B2B Dashboard →
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/learn"
+            className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+          >
+            Learn
+          </Link>
+          <Link
+            href="/dashboard"
+            className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+          >
+            B2B →
+          </Link>
+        </div>
       </header>
 
-      <StreakBanner streak={streak} />
+      <button onClick={() => setShowTranslator(true)} className="w-full text-left">
+        <StreakBanner streak={streak} />
+        <p className="mt-1 text-center text-[10px] text-emerald-700/60">tap to see what that really means →</p>
+      </button>
 
       {/* Body */}
       <div className="flex flex-1 flex-col items-center justify-center">
         <AnimatePresence mode="wait">
           {phase === "scan" && (
-            <motion.div
-              key="scan"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="w-full"
-            >
+            <motion.div key="scan" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
               <CameraCapture onCapture={handleCapture} busy={false} />
             </motion.div>
           )}
@@ -147,25 +202,34 @@ export default function Home() {
               )}
               <div className="flex items-center gap-2 text-emerald-700">
                 <span className="h-3 w-3 animate-ping rounded-full bg-emerald-500" />
-                <span className="text-sm font-medium">Reading the item & ranking circular actions…</span>
+                <span className="text-sm font-medium">Reading & ranking circular actions…</span>
               </div>
             </motion.div>
           )}
 
           {phase === "result" && scan && (
-            <motion.div
-              key="result"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="w-full"
-            >
+            <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
               <LoopCard
                 scan={scan}
                 previewUrl={previewUrl}
-                onConfirm={handleConfirm}
+                refining={refining}
+                onConfirm={(actionType, co2) => handleConfirm(scan.scanId, actionType, co2)}
                 onScanNext={scanNext}
                 onStartRepair={(itemName) => setRepairFor(itemName)}
+                onRefine={handleRefine}
+              />
+            </motion.div>
+          )}
+
+          {phase === "result-multi" && multi && (
+            <motion.div key="result-multi" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
+              <MultiScanView
+                items={multi.items}
+                previewUrl={previewUrl}
+                source={multi.source}
+                municipality={multi.municipality}
+                onConfirm={handleConfirm}
+                onScanNext={scanNext}
               />
             </motion.div>
           )}
@@ -193,10 +257,25 @@ export default function Home() {
           onClose={() => setRepairFor(null)}
           onComplete={() => {
             setRepairFor(null);
-            handleConfirm("repair", scan?.card.co2_saved_kg ?? 0);
+            if (scan) handleConfirm(scan.scanId, "repair", scan.card.co2_saved_kg);
           }}
         />
       )}
+
+      {/* Impact translator (tangible equivalences) */}
+      {showTranslator && (
+        <ImpactTranslator
+          streak={streak}
+          onShare={() => {
+            setShowTranslator(false);
+            setShowImpact(true);
+          }}
+          onClose={() => setShowTranslator(false)}
+        />
+      )}
+
+      {/* Shareable impact card */}
+      {showImpact && <ImpactCard streak={streak} onClose={() => setShowImpact(false)} />}
 
       <footer className="pt-2 text-center text-[10px] text-emerald-700/50">
         Reloop · circular-economy AI · SDG 12 / 13 / 11

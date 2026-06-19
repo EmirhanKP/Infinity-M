@@ -57,11 +57,17 @@ const CARDS: Record<DemoKey, LoopCard> = {
     recyclability_note:
       "High-value materials (gold, cobalt, aluminium) but disassembly is complex; reuse beats recycling here.",
     alternatives: [],
+    recoverable_materials: {
+      summary: "≈0.03 g gold, plus cobalt, copper, palladium & rare-earth magnets — true urban mining",
+      est_value_eur: 2,
+    },
     dpp_fields: {
       material: "Aluminium + glass + Li-ion + mixed electronics",
       recyclability: "Partially recyclable (specialist WEEE stream)",
       est_recycled_content_pct: 20,
     },
+    data_basis: "ai_estimate",
+    data_note: "AI estimate from the photo — tap “Not right?” and add the exact model for model-specific figures.",
   },
   charger: {
     item_name: "Tangled phone charger / cable bundle",
@@ -90,11 +96,17 @@ const CARDS: Record<DemoKey, LoopCard> = {
     recyclability_note:
       "Copper is valuable and recyclable; the mixed plastics need the e-waste stream, not packaging recycling.",
     alternatives: [],
+    recoverable_materials: {
+      summary: "Recoverable copper in the wire — worth recycling for the metal",
+      est_value_eur: 1,
+    },
     dpp_fields: {
       material: "Copper + PVC + ABS",
       recyclability: "Recyclable via WEEE e-waste stream",
       est_recycled_content_pct: 10,
     },
+    data_basis: "ai_estimate",
+    data_note: "AI estimate from the photo — material breakdown is approximate.",
   },
   jar: {
     item_name: "Empty glass jar with lid",
@@ -123,11 +135,17 @@ const CARDS: Record<DemoKey, LoopCard> = {
     recyclability_note:
       "Glass is infinitely recyclable, but reuse avoids the remelt energy entirely — reuse beats recycle.",
     alternatives: [],
+    recoverable_materials: {
+      summary: "No precious metals — its value is in reuse, not recovery",
+      est_value_eur: 0,
+    },
     dpp_fields: {
       material: "Soda-lime glass + steel",
       recyclability: "Fully recyclable (colour-separated)",
       est_recycled_content_pct: 60,
     },
+    data_basis: "ai_estimate",
+    data_note: "AI estimate from the photo — glass figures are typical values.",
   },
   toaster: {
     item_name: "Two-slice electric toaster (not heating)",
@@ -156,11 +174,17 @@ const CARDS: Record<DemoKey, LoopCard> = {
     recyclability_note:
       "Mostly metal and therefore recyclable, but a €5 repair part keeps the whole appliance in use.",
     alternatives: [],
+    recoverable_materials: {
+      summary: "Steel housing, copper windings and nichrome elements — recyclable metals",
+      est_value_eur: 1,
+    },
     dpp_fields: {
       material: "Steel + nichrome + electronics + plastic",
       recyclability: "Recyclable via WEEE stream",
       est_recycled_content_pct: 30,
     },
+    data_basis: "ai_estimate",
+    data_note: "AI estimate from the photo — add the model/wattage for a precise repair cost.",
   },
   styrofoam: {
     item_name: "Polystyrene foam packaging block",
@@ -198,11 +222,17 @@ const CARDS: Record<DemoKey, LoopCard> = {
         why: "Choose brands using paper-based protection — it actually gets recycled in the paper stream.",
       },
     ],
+    recoverable_materials: {
+      summary: "No recoverable material value — the win is avoiding it at purchase",
+      est_value_eur: 0,
+    },
     dpp_fields: {
       material: "Expanded polystyrene (EPS)",
       recyclability: "Technically recyclable, practically landfilled",
       est_recycled_content_pct: 0,
     },
+    data_basis: "ai_estimate",
+    data_note: "AI estimate from the photo — EPS has no recoverable value to refine.",
   },
 };
 
@@ -224,6 +254,19 @@ export function mockLoopCard(
 ): LoopCard {
   const key = (hint && (ORDER as string[]).includes(hint) ? hint : hashPick(imageBase64)) as DemoKey;
   return localise(rule, CARDS[key]);
+}
+
+export function mockRefine(card: LoopCard, correction: string): LoopCard {
+  const { low, high } = card.resale_estimate_eur;
+  const mid = high > 0 ? Math.round((low + high) / 2) : 0;
+  return {
+    ...card,
+    item_name: correction ? `${card.item_name} (${correction})` : card.item_name,
+    brand_model_guess: correction || card.brand_model_guess,
+    resale_estimate_eur: mid > 0 ? { low: Math.round(mid * 0.9), high: Math.round(mid * 1.1) } : card.resale_estimate_eur,
+    data_basis: "model_matched",
+    data_note: `Matched to “${correction}” — figures now use this model’s known specifications.`,
+  };
 }
 
 export interface RepairStepResult {
@@ -252,6 +295,115 @@ export interface ResaleGrounding {
   high: number;
   links: { label: string; url: string }[];
   note: string;
+}
+
+// ── Multi-item "junk drawer" scan ────────────────────────────────────────
+import type { MultiScanItem, ListingResult, PartResult, AskResult } from "../clientTypes";
+
+export function mockAsk(_question: string): AskResult {
+  return {
+    answer:
+      "Keeping a product in use — repairing, reusing or reselling it — almost always beats recycling, because every recycling loop still loses some material and energy. That's exactly why the EU waste hierarchy ranks prevention and reuse above recycling. And because roughly 80% of a product's lifetime environmental impact is decided at the design stage, the biggest wins come from keeping well-made things in circulation for longer.",
+    sources: [
+      {
+        label: "Ellen MacArthur Foundation — Circular economy explained",
+        url: "https://www.ellenmacarthurfoundation.org/topics/circular-economy-introduction/overview",
+      },
+      {
+        label: "UN Global E-waste Monitor 2024",
+        url: "https://globalewaste.org/",
+      },
+    ],
+  };
+}
+
+export function mockMultiScan(): MultiScanItem[] {
+  return [
+    {
+      label: "Smartphone (cracked)",
+      material: "Aluminium + glass + Li-ion",
+      condition_score: 4,
+      box: { x: 0.06, y: 0.1, w: 0.34, h: 0.42 },
+      best_action: "repair",
+      instruction: "Screen kit ~€25 restores full value.",
+      local_hint: "iFixit guide for your model.",
+      co2_saved_kg: 32,
+      resale_low: 60,
+      resale_high: 90,
+    },
+    {
+      label: "Tangled charger",
+      material: "Copper + PVC",
+      condition_score: 6,
+      box: { x: 0.46, y: 0.06, w: 0.3, h: 0.3 },
+      best_action: "recycle",
+      instruction: "Mixed e-waste — retailer take-back.",
+      local_hint: "Not the yellow bin — WEEE take-back.",
+      co2_saved_kg: 1.2,
+      resale_low: 0,
+      resale_high: 5,
+    },
+    {
+      label: "Glass jar",
+      material: "Soda-lime glass",
+      condition_score: 9,
+      box: { x: 0.62, y: 0.46, w: 0.26, h: 0.44 },
+      best_action: "donate",
+      instruction: "Reuse for storage or refill shop.",
+      local_hint: "Refill/unverpackt store.",
+      co2_saved_kg: 0.6,
+      resale_low: 0,
+      resale_high: 0,
+    },
+    {
+      label: "AA batteries",
+      material: "Alkaline / zinc",
+      condition_score: 2,
+      box: { x: 0.1, y: 0.62, w: 0.22, h: 0.2 },
+      best_action: "recycle",
+      instruction: "Never in household waste — fire risk.",
+      local_hint: "Battery collection box at any supermarket.",
+      co2_saved_kg: 0.4,
+      resale_low: 0,
+      resale_high: 0,
+    },
+    {
+      label: "Cotton t-shirt",
+      material: "Cotton",
+      condition_score: 7,
+      box: { x: 0.34, y: 0.5, w: 0.26, h: 0.4 },
+      best_action: "donate",
+      instruction: "Wearable — donate or resell, don't bin.",
+      local_hint: "Textile container / charity (EU textile EPR).",
+      co2_saved_kg: 4,
+      resale_low: 3,
+      resale_high: 12,
+    },
+  ];
+}
+
+export function mockListing(itemName: string, low: number, high: number): ListingResult {
+  const price = high > 0 ? Math.round((low + high) / 2) : 15;
+  return {
+    title: `${itemName} — good condition, ready to loop ♻️`,
+    description: `Selling my ${itemName.toLowerCase()}. Works well, normal signs of use. Giving it a second life instead of landfill — collection or shipping possible. Priced to move. #circular #secondhand`,
+    price_eur: price,
+    category: "Electronics & Tech",
+    marketplaceUrl: `https://www.vinted.de/items/new?search_text=${encodeURIComponent(itemName)}`,
+  };
+}
+
+export function mockParts(itemName: string): PartResult {
+  return {
+    part_name: `Replacement part / repair kit for ${itemName}`,
+    price_eur: 25,
+    note: "Typical screen/spare-part kit price for this class of device.",
+    links: [
+      { label: "iFixit repair kit", url: `https://www.ifixit.com/Search?query=${encodeURIComponent(itemName)}` },
+      { label: "Spare parts on Amazon", url: `https://www.amazon.de/s?k=${encodeURIComponent(itemName + " replacement part")}` },
+      { label: "Compatible parts on eBay", url: `https://www.ebay.de/sch/i.html?_nkw=${encodeURIComponent(itemName + " ersatzteil")}` },
+    ],
+  };
 }
 
 export function mockResale(itemName: string): ResaleGrounding {
