@@ -5,7 +5,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import CameraCapture, { type Capture } from "@/components/CameraCapture";
 import LoopCard from "@/components/LoopCard";
+import MiniHistory, { type HistoryItem } from "@/components/MiniHistory";
 import MultiScanView, { type MultiItem } from "@/components/MultiScanView";
+import SingleItemChooser from "@/components/SingleItemChooser";
 import StreakBanner from "@/components/StreakBanner";
 import Logo from "@/components/Logo";
 import RepairCoach from "@/components/RepairCoach";
@@ -14,7 +16,7 @@ import ImpactTranslator from "@/components/ImpactTranslator";
 import Confetti from "@/components/Confetti";
 import ScanningOverlay from "@/components/ScanningOverlay";
 import { celebrate } from "@/lib/haptics";
-import type { ScanResponse, StreakValues } from "@/lib/clientTypes";
+import type { ScanChoiceResponse, ScanResponse, SingleScanResponse, StreakValues } from "@/lib/clientTypes";
 import type { ActionType, LoopCard as LoopCardData } from "@/lib/ai/loopcard";
 
 // Synthesize a minimal Loop Card from a multi-scan item so /api/refine has a
@@ -40,6 +42,31 @@ function multiItemToCard(item: MultiItem): LoopCardData {
   };
 }
 
+function selectedItemToCard(itemName: string): LoopCardData {
+  return {
+    item_name: itemName,
+    material: "AI-estimated material after item selection",
+    brand_model_guess: "",
+    condition_score: 5,
+    circular_actions: [
+      { type: "recycle", instructions: "Waiting for focused analysis.", effort_1to5: 1, local_hint: "" },
+    ],
+    resale_estimate_eur: { low: 0, high: 0 },
+    co2_saved_kg: 0,
+    recyclability_note: "Draft DPP will be generated from the selected item analysis.",
+    alternatives: [],
+    recoverable_materials: { summary: "", est_value_eur: 0 },
+    dpp_fields: {
+      material: "AI-estimated material after item selection",
+      recyclability: "AI-estimated from selected item",
+      est_recycled_content_pct: 0,
+    },
+    data_basis: "ai_estimate",
+    data_note: "Waiting for focused analysis.",
+    other_items_detected: [],
+  };
+}
+
 const ZERO_STREAK: StreakValues = {
   loopPoints: 0,
   weeklyCo2SavedKg: 0,
@@ -53,6 +80,36 @@ interface MultiState {
   municipality: string;
 }
 
+function historyStorageKey(sessionId: string): string {
+  return `reloop-history:${sessionId}`;
+}
+
+function historyFromScan(scan: ScanResponse): HistoryItem {
+  const best = scan.card.circular_actions[0]?.type ?? "recycle";
+  return {
+    scanId: scan.scanId,
+    itemName: scan.card.item_name,
+    bestAction: best as ActionType,
+    co2SavedKg: scan.card.co2_saved_kg,
+    resaleLowEur: scan.card.resale_estimate_eur.low,
+    resaleHighEur: scan.card.resale_estimate_eur.high,
+    createdAt: Date.now(),
+  };
+}
+
+function historyFromMultiItem(item: MultiItem): HistoryItem | null {
+  if (!item.scanId) return null;
+  return {
+    scanId: item.scanId,
+    itemName: item.label,
+    bestAction: item.best_action as ActionType,
+    co2SavedKg: item.co2_saved_kg,
+    resaleLowEur: item.resale_low,
+    resaleHighEur: item.resale_high,
+    createdAt: Date.now(),
+  };
+}
+
 function useSessionId() {
   const [id, setId] = useState<string>("anon");
   useEffect(() => {
@@ -61,20 +118,22 @@ function useSessionId() {
       s = crypto.randomUUID();
       localStorage.setItem("reloop-session", s);
     }
-    setId(s);
+    setTimeout(() => setId(s), 0);
   }, []);
   return id;
 }
 
 export default function Home() {
   const sessionId = useSessionId();
-  const [phase, setPhase] = useState<"scan" | "scanning" | "result" | "result-multi">("scan");
+  const [phase, setPhase] = useState<"scan" | "scanning" | "choose-item" | "result" | "result-multi">("scan");
   const [scan, setScan] = useState<ScanResponse | null>(null);
   const [multi, setMulti] = useState<MultiState | null>(null);
+  const [singleChoice, setSingleChoice] = useState<ScanChoiceResponse | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const [lastImage, setLastImage] = useState<string>("");
   const [lastMedia, setLastMedia] = useState<string>("image/jpeg");
   const [streak, setStreak] = useState<StreakValues>(ZERO_STREAK);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [repairFor, setRepairFor] = useState<string | null>(null);
   const [showImpact, setShowImpact] = useState(false);
@@ -91,8 +150,39 @@ export default function Home() {
       .catch(() => {});
   }, [sessionId]);
 
+  useEffect(() => {
+    if (sessionId === "anon") return;
+    const timer = setTimeout(() => {
+      try {
+        const raw = localStorage.getItem(historyStorageKey(sessionId));
+        setHistory(raw ? (JSON.parse(raw) as HistoryItem[]) : []);
+      } catch {
+        setHistory([]);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [sessionId]);
+
+  function addHistoryItems(items: Array<HistoryItem | null>) {
+    const valid = items.filter((item): item is HistoryItem => Boolean(item));
+    if (!valid.length) return;
+
+    setHistory((current) => {
+      const next = [...valid, ...current]
+        .filter((item, index, all) => all.findIndex((candidate) => candidate.scanId === item.scanId) === index)
+        .slice(0, 3);
+      if (sessionId !== "anon") {
+        localStorage.setItem(historyStorageKey(sessionId), JSON.stringify(next));
+      }
+      return next;
+    });
+  }
+
   async function handleCapture(c: Capture) {
     setPhase("scanning");
+    setScan(null);
+    setMulti(null);
+    setSingleChoice(null);
     setPreviewUrl(c.previewUrl);
     setLastImage(c.imageBase64);
     setLastMedia(c.mediaType);
@@ -105,6 +195,7 @@ export default function Home() {
         });
         const json = await res.json();
         setMulti({ items: json.items, source: json.source, municipality: json.municipality });
+        addHistoryItems(json.items.map((item: MultiItem) => historyFromMultiItem(item)));
         setPhase("result-multi");
       } else {
         const res = await fetch("/api/scan", {
@@ -112,9 +203,15 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ imageBase64: c.imageBase64, mediaType: c.mediaType, sessionId, hint: c.hint }),
         });
-        const json = (await res.json()) as ScanResponse;
-        setScan(json);
-        setPhase("result");
+        const json = (await res.json()) as SingleScanResponse;
+        if (json.kind === "choose-item") {
+          setSingleChoice(json);
+          setPhase("choose-item");
+        } else {
+          setScan(json);
+          addHistoryItems([historyFromScan(json)]);
+          setPhase("result");
+        }
       }
     } catch {
       setToast("Scan failed — try again");
@@ -159,9 +256,38 @@ export default function Home() {
       });
       const json = (await res.json()) as ScanResponse;
       setScan(json);
+      addHistoryItems([historyFromScan(json)]);
       showToast("Refined with your model ✓");
     } catch {
       showToast("Refine failed — try again");
+    } finally {
+      setRefining(false);
+    }
+  }
+
+  async function chooseSingleItem(itemName: string) {
+    if (!singleChoice) return;
+    setRefining(true);
+    try {
+      const res = await fetch("/api/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: lastImage,
+          mediaType: lastMedia,
+          sessionId,
+          correction: `Focus only on the ${itemName} in this photo and produce its Loop Card for that single item.`,
+          currentCard: selectedItemToCard(itemName),
+        }),
+      });
+      const json = (await res.json()) as ScanResponse;
+      setScan(json);
+      addHistoryItems([historyFromScan(json)]);
+      setSingleChoice(null);
+      setPhase("result");
+    } catch {
+      showToast("Could not load that item");
+      setPhase("choose-item");
     } finally {
       setRefining(false);
     }
@@ -185,10 +311,11 @@ export default function Home() {
       });
       const json = (await res.json()) as ScanResponse;
       setScan(json);
+      addHistoryItems([historyFromScan(json)]);
       setCameFromMulti(true);
       setPhase("result");
     } catch {
-      showToast("Konnte das Item nicht laden");
+      showToast("Could not load that item");
       setPhase("result-multi");
     }
   }
@@ -207,6 +334,7 @@ export default function Home() {
   function scanNext() {
     setScan(null);
     setMulti(null);
+    setSingleChoice(null);
     setPreviewUrl("");
     setCameFromMulti(false);
     setPhase("scan");
@@ -256,12 +384,27 @@ export default function Home() {
           {phase === "scan" && (
             <motion.div key="scan" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
               <CameraCapture onCapture={handleCapture} busy={false} />
+              <div className="mt-4">
+                <MiniHistory items={history} />
+              </div>
             </motion.div>
           )}
 
           {phase === "scanning" && (
             <motion.div key="scanning" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
               <ScanningOverlay previewUrl={previewUrl} />
+            </motion.div>
+          )}
+
+          {phase === "choose-item" && singleChoice && (
+            <motion.div key="choose-item" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
+              <SingleItemChooser
+                choices={singleChoice.choices}
+                previewUrl={previewUrl}
+                busy={refining}
+                onChoose={chooseSingleItem}
+                onRetake={scanNext}
+              />
             </motion.div>
           )}
 
@@ -272,7 +415,7 @@ export default function Home() {
                   onClick={backToList}
                   className="mb-2 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
                 >
-                  ← Zurück zur Liste
+                  ← Back to list
                 </button>
               )}
               <LoopCard

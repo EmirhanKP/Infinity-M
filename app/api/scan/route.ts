@@ -6,6 +6,18 @@ import type { ActionType } from "@/lib/ai/loopcard";
 
 export const runtime = "nodejs";
 
+function itemChoices(primary: string, others: string[]): string[] {
+  const seen = new Set<string>();
+  return [primary, ...others]
+    .map((item) => item.trim())
+    .filter((item) => {
+      const key = item.toLowerCase();
+      if (!item || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 export async function POST(request: Request) {
   let body: {
     imageBase64?: string;
@@ -27,6 +39,16 @@ export async function POST(request: Request) {
 
   const rule = getMunicipality(municipality);
   const { card, source } = await getLoopCard(imageBase64, rule, mediaType, hint);
+  const choices = itemChoices(card.item_name, card.other_items_detected ?? []);
+  if (choices.length > 1) {
+    return Response.json({
+      kind: "choose-item",
+      choices,
+      source,
+      municipality: rule.name,
+    });
+  }
+
   const scan = await addScan(sessionId, card, rule.code);
 
   const links: Record<string, ReturnType<typeof dealLinksFor>> = {};
@@ -35,6 +57,7 @@ export async function POST(request: Request) {
   }
 
   return Response.json({
+    kind: "scan",
     scanId: scan.id,
     card,
     links,

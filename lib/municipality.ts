@@ -16,7 +16,7 @@ export interface MunicipalityRule {
 export const MUNICIPALITIES: Record<string, MunicipalityRule> = {
   munich: {
     code: "munich",
-    name: "Munich (München)",
+    name: "Munich",
     softPlasticsBin:
       "Wertstoffinsel / yellow recycling — soft plastics & packaging (Gelber Sack is not used city-wide; use the Wertstoffinsel containers)",
     glassStream: "container glass by colour: green / brown / clear (Altglascontainer)",

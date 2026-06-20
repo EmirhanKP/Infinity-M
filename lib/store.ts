@@ -148,7 +148,6 @@ function seed(): DbShape {
 let cache: DbShape | null = null;
 
 async function load(): Promise<DbShape> {
-  if (cache) return cache;
   try {
     const raw = await fs.readFile(DATA_FILE, "utf8");
     cache = JSON.parse(raw) as DbShape;

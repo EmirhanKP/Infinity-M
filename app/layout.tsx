@@ -1,21 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "Reloop — Snap it. Score it. Loop it.",
+  title: "Reloop - Snap it. Score it. Loop it.",
   description:
-    "Snap any item and an AI Loop Card ranks the best circular action — repair, resell, donate, recycle or bin — with one-tap actions, rewards and a CO₂-saved streak.",
+    "Snap any item and an AI Loop Card ranks the best circular action - repair, resell, donate, recycle or bin - with one-tap actions, rewards and a CO2-saved streak.",
   manifest: "/manifest.webmanifest",
 };
 
@@ -32,10 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

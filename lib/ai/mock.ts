@@ -207,7 +207,7 @@ const CARDS: Record<DemoKey, LoopCard> = {
       {
         type: "recycle",
         instructions:
-          "A few Wertstoffhöfe accept clean EPS separately — check before assuming it's recyclable.",
+          "A few recycling centers accept clean EPS separately — check before assuming it's recyclable.",
         effort_1to5: 2,
         local_hint: "Ask your local Wertstoffhof whether they take clean Styropor / EPS.",
       },
@@ -252,6 +252,16 @@ function hashPick(imageBase64: string): DemoKey {
   return ORDER[sum % ORDER.length];
 }
 
+function keyFromLabel(label: string): DemoKey | null {
+  const s = label.toLowerCase();
+  if (/(phone|smartphone|iphone|tablet|laptop|screen)/.test(s)) return "phone";
+  if (/(charger|cable|adapter|wire|usb)/.test(s)) return "charger";
+  if (/(jar|glass|bottle)/.test(s)) return "jar";
+  if (/(toaster|kettle|appliance)/.test(s)) return "toaster";
+  if (/(foam|styrofoam|polystyrene|eps|packaging)/.test(s)) return "styrofoam";
+  return null;
+}
+
 export function mockLoopCard(
   imageBase64: string,
   rule: MunicipalityRule,
@@ -264,13 +274,30 @@ export function mockLoopCard(
 export function mockRefine(card: LoopCard, correction: string): LoopCard {
   const { low, high } = card.resale_estimate_eur;
   const mid = high > 0 ? Math.round((low + high) / 2) : 0;
+  const focusedItem = correction.match(/^Focus only on the (.+?) in this photo/i)?.[1]?.trim();
+  if (focusedItem) {
+    const key = keyFromLabel(focusedItem);
+    const base = key ? CARDS[key] : card;
+    return {
+      ...base,
+      item_name: focusedItem,
+      data_basis: "ai_estimate",
+      data_note: `AI estimate focused on "${focusedItem}" from the selected photo.`,
+      other_items_detected: [],
+      dpp_fields: {
+        material: base.dpp_fields.material || base.material || focusedItem,
+        recyclability: base.dpp_fields.recyclability || base.recyclability_note || "AI-estimated from selected item",
+        est_recycled_content_pct: base.dpp_fields.est_recycled_content_pct ?? 0,
+      },
+    };
+  }
   return {
     ...card,
     item_name: correction ? `${card.item_name} (${correction})` : card.item_name,
     brand_model_guess: correction || card.brand_model_guess,
     resale_estimate_eur: mid > 0 ? { low: Math.round(mid * 0.9), high: Math.round(mid * 1.1) } : card.resale_estimate_eur,
     data_basis: "model_matched",
-    data_note: `Matched to “${correction}” — figures now use this model’s known specifications.`,
+    data_note: `Matched to "${correction}" - figures now use this model's known specifications.`,
     other_items_detected: [],
   };
 }
@@ -306,7 +333,8 @@ export interface ResaleGrounding {
 // ── Multi-item "junk drawer" scan ────────────────────────────────────────
 import type { MultiScanItem, ListingResult, PartResult, AskResult } from "../clientTypes";
 
-export function mockAsk(_question: string): AskResult {
+export function mockAsk(question: string): AskResult {
+  void question;
   return {
     answer:
       "Keeping a product in use — repairing, reusing or reselling it — almost always beats recycling, because every recycling loop still loses some material and energy. That's exactly why the EU waste hierarchy ranks prevention and reuse above recycling. And because roughly 80% of a product's lifetime environmental impact is decided at the design stage, the biggest wins come from keeping well-made things in circulation for longer.",

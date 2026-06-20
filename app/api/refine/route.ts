@@ -6,6 +6,24 @@ import type { ActionType, LoopCard } from "@/lib/ai/loopcard";
 
 export const runtime = "nodejs";
 
+function withDraftDpp(card: LoopCard): LoopCard {
+  const material = card.dpp_fields?.material?.trim() || card.material?.trim() || card.item_name;
+  const recyclability =
+    card.dpp_fields?.recyclability?.trim() ||
+    card.recyclability_note?.trim() ||
+    "AI-estimated from selected item";
+
+  return {
+    ...card,
+    recyclability_note: card.recyclability_note?.trim() || recyclability,
+    dpp_fields: {
+      material,
+      recyclability,
+      est_recycled_content_pct: Math.max(0, Math.min(100, Math.round(card.dpp_fields?.est_recycled_content_pct ?? 0))),
+    },
+  };
+}
+
 export async function POST(request: Request) {
   let body: {
     imageBase64?: string;
@@ -32,7 +50,9 @@ export async function POST(request: Request) {
   if (!currentCard) return Response.json({ error: "Missing currentCard" }, { status: 400 });
 
   const rule = getMunicipality(municipality);
-  const { card, source } = await refineLoopCard({ imageBase64, rule, mediaType, correction, currentCard });
+  const result = await refineLoopCard({ imageBase64, rule, mediaType, correction, currentCard });
+  const card = withDraftDpp(result.card);
+  const source = result.source;
   const scan = await addScan(sessionId, card, rule.code);
 
   const links: Record<string, ReturnType<typeof dealLinksFor>> = {};

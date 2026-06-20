@@ -54,12 +54,22 @@ export interface BrandDashboardData {
 }
 
 export interface ScanResponse {
+  kind?: "scan";
   scanId: string;
   card: LoopCard;
   links: Record<string, DeepLink[]>;
   source: "live" | "mock" | "mock-fallback";
   municipality: string;
 }
+
+export interface ScanChoiceResponse {
+  kind: "choose-item";
+  choices: string[];
+  source: "live" | "mock" | "mock-fallback";
+  municipality: string;
+}
+
+export type SingleScanResponse = ScanResponse | ScanChoiceResponse;
 
 export interface StreakValues {
   loopPoints: number;

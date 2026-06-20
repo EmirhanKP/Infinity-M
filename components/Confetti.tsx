@@ -8,19 +8,24 @@ import { motion } from "framer-motion";
 // unmount it.
 const COLORS = ["#55E6A5", "#2fd08c", "#16b377", "#facc15", "#38bdf8", "#fb7185"];
 
+function seededUnit(seed: number): number {
+  const x = Math.sin(seed * 999) * 10000;
+  return x - Math.floor(x);
+}
+
 export default function Confetti({ onDone, count = 80 }: { onDone?: () => void; count?: number }) {
   const pieces = useMemo(
     () =>
       Array.from({ length: count }, (_, i) => ({
         id: i,
-        x: (Math.random() - 0.5) * 2 * 48, // vw spread, both directions
-        rot: Math.random() * 720 - 360,
-        delay: Math.random() * 0.15,
-        duration: 1.6 + Math.random() * 1.1,
-        size: 7 + Math.random() * 8,
+        x: (seededUnit(i + 1) - 0.5) * 2 * 48, // vw spread, both directions
+        rot: seededUnit(i + 2) * 720 - 360,
+        delay: seededUnit(i + 3) * 0.15,
+        duration: 1.6 + seededUnit(i + 4) * 1.1,
+        size: 7 + seededUnit(i + 5) * 8,
         color: COLORS[i % COLORS.length],
-        rounded: Math.random() > 0.5,
-        drift: (Math.random() - 0.5) * 30,
+        rounded: seededUnit(i + 6) > 0.5,
+        drift: (seededUnit(i + 7) - 0.5) * 30,
       })),
     [count],
   );

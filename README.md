@@ -1,89 +1,92 @@
-# Reloop — Snap it. Score it. Loop it.
+# Reloop - Snap it. Score it. Loop it.
 
 An AI circular-economy app for the EU. Snap any item with your phone and a
-**vision LLM returns a "Loop Card"** that ranks the best circular action
-*best-first* along the EU waste hierarchy — **Repair → Resell → Donate →
-Recycle → Bin** — with one-tap actions, a resale price band, CO₂ saved, gamified
-Loop Points / streaks, and an auto-filled draft **Digital Product Passport
-(DPP)** that feeds a B2B material-flow dashboard.
+vision model returns a Loop Card that ranks the best circular action first:
 
-Built for the Infinity hackathon. Consumer front end (SDG 12 / 13 / 11),
-monetised by a B2B DPP/data back end riding the EU ESPR regulation wave
-(Digital Product Passports mandatory: batteries 2026, textiles 2027).
+Repair -> Resell -> Donate -> Recycle -> Bin
 
-## Quick start
+Each Loop Card includes one-tap actions, a resale price band, CO2 saved, Loop
+Points, streaks, and a draft Digital Product Passport (DPP) that feeds the B2B
+material-flow and brand dashboards.
+
+Built for the Infinity hackathon. The consumer app targets SDG 12, 13 and 11;
+the business layer monetizes Digital Product Passport issuance, end-of-life
+data, and trade-in/resale routing.
+
+## Quick Start
 
 ```bash
 npm install
-npm run dev      # http://localhost:3000
+npm run dev
 ```
 
-The app runs **fully in mock mode with no API key** — every screen, the Loop
-Cards, the reward loop, the repair coach, and the dashboard all work offline.
-Use the **demo prop buttons** on the home screen for guaranteed, deterministic
-cards (great for a stage demo).
+Open http://localhost:3000.
 
-> Node.js ≥ 20.9 is required. A portable copy was installed at
-> `C:\Users\<you>\AppData\Local\nodejs-portable` if you don't have Node on PATH.
+The app runs fully in mock mode without any API key. The home-screen demo prop
+buttons always return deterministic cards, so the demo works offline.
 
-## Turning on real AI
+Node.js 20.9 or newer is required.
 
-1. Put your Anthropic key in `.env.local`:
-   ```
-   ANTHROPIC_API_KEY=sk-ant-...
-   RELOOP_AI_MODE=live
-   ```
-2. Restart `npm run dev`. Uploaded photos now go to Claude vision; the demo prop
-   buttons still serve the deterministic cards.
+## Turn On Live AI
 
-The default scan model is `claude-fable-5` (vision + structured JSON output).
-Fable 5 requires 30-day data retention — if your org/key can't use it, set
-`RELOOP_SCAN_MODEL=claude-opus-4-8`. If any live call fails it transparently
-falls back to a mock card, so the demo never breaks.
+Create or edit `.env.local`:
 
-## How the AI works
+```env
+RELOOP_AI_MODE=live
+OPENAI_API_KEY=sk-...
+```
 
-- **Snap → Loop Card** (`/api/scan`): base64 photo → Claude (`claude-fable-5`,
-  vision) constrained to a strict JSON schema (`output_config.format`) → a
-  ranked Loop Card. The system prompt encodes the EU Waste Framework Directive
-  hierarchy + a Munich municipality ruleset so `local_hint` is concrete.
-- **Alternatives nudge**: when the verdict is `bin`, the same JSON returns 2
-  buy-circular suggestions (a design-for-circularity teaching moment).
-- **Repair coach** (`/api/verify-step`): multi-step vision verification on
-  `claude-haiku-4-5` — snap a progress photo, get the next step.
-- **Resale grounding** (`/api/resale`): confidence-gated `web_search` for live
-  Vinted/Back Market comps.
-- **DPP / dashboard** (`/dashboard`): every scan emits draft DPP fields that
-  aggregate into anonymized material-flow data — the B2B revenue hook.
+Restart `npm run dev`. Uploaded photos now go through OpenAI vision and
+structured outputs. Demo prop buttons still return deterministic mock cards.
 
-Everything sits behind one interface (`lib/ai/index.ts`) with a `mock` and a
-`live` implementation chosen by `RELOOP_AI_MODE`, so the contract is identical.
+Useful optional overrides:
+
+```env
+RELOOP_SCAN_MODEL=gpt-5.4
+RELOOP_REPAIR_MODEL=gpt-5.4-mini
+RELOOP_RESALE_MODEL=gpt-5.4-mini
+```
+
+If any live call fails, the app falls back to mock data so the demo keeps
+working.
+
+## How The AI Works
+
+- `/api/scan`: base64 image -> OpenAI vision -> strict JSON Loop Card schema.
+- `/api/scan-multi`: detects multiple items in one pile photo.
+- `/api/refine`: recomputes a card from user corrections such as exact model or
+  damage details.
+- `/api/verify-step`: checks guided repair progress photos.
+- `/api/resale` and `/api/parts`: use web search grounding for resale comps and
+  spare parts.
+- `/api/ask`: answers circular-economy questions with source URLs.
+
+All AI calls sit behind `lib/ai/index.ts`, which switches between `mock` and
+`live` using `RELOOP_AI_MODE`.
 
 ## Architecture
 
+```text
+app/                 App Router pages and API route handlers
+components/          CameraCapture, LoopCard, MultiScanView, dashboards, modals
+lib/ai/              Loop Card schema, mock data, live OpenAI implementation
+lib/store.ts         JSON-file store for scans, confirmations, streaks and DPPs
+lib/municipality.ts  Local disposal ruleset
+lib/dealLinks.ts     Deterministic deep links
 ```
-app/                 page.tsx (snap→card→reward loop), dashboard/, api/* route handlers
-components/           CameraCapture, LoopCard, StreakBanner, RepairCoach
-lib/ai/               loopcard.ts (schema+prompt), mock.ts, live.ts, index.ts (mode switch)
-lib/store.ts          JSON-file store (scans, confirms, streaks, DPP aggregates)
-lib/municipality.ts   hardcoded Munich ruleset (productionizes to per-city config)
-lib/dealLinks.ts      deterministic deep links (Vinted/Back Market/iFixit/Maps)
-```
 
-Stack: Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 ·
-framer-motion · Anthropic Claude API. Persistence is a JSON file under `.data/`
-(zero-config; swap for Postgres later).
+Stack: Next.js 16 App Router, React 19, TypeScript, Tailwind CSS v4,
+framer-motion, OpenAI API, and a local JSON store under `.data/`.
 
-## 3-minute demo script
+## Three-Minute Demo
 
-1. **Hook** — "Citizens want to do the right thing but the rules are confusing,
-   so the default is the bin. Reloop turns any item into a decision in 3s."
-2. **Cracked phone** → REPAIR best (€25 kit, resale €60–90, saves 32 kg CO₂).
-   "It pushes UP the hierarchy to repair/resell — competitors stop at recycle."
-3. **Charger** → RECYCLE: retailer take-back, *not* the yellow bin. Confirm →
-   Loop Points + streak tick up.
-4. **Foam packaging** → BIN verdict → alternatives nudge ("next time: molded-pulp
-   packaging").
-5. **`/dashboard`** — "Every scan auto-fills a DPP + feeds anonymized
-   material-flow data. ESPR makes DPPs mandatory — we're the consumer on-ramp."
-6. **Close** — freemium + affiliate fees + B2B DPP API. "Snap it. Score it. Loop it."
+1. Hook: "People want to do the right thing, but disposal rules are confusing.
+   Reloop turns any item into a decision in three seconds."
+2. Scan the cracked phone demo. Show Repair as best action, the part search,
+   resale value, and CO2 saved.
+3. Get and accept an instant cash offer so the revenue metrics move.
+4. Scan the charger demo. Confirm the recycle action and show Loop Points.
+5. Scan foam packaging. Show the honest Bin verdict and circular alternatives.
+6. Open the DPP QR and the public passport page.
+7. Open `/dashboard` and `/brand` to show material-flow data, DPP issuance,
+   end-of-life intelligence, and the revenue model.

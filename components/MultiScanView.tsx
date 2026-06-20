@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import type { MultiScanItem, DeepLink } from "@/lib/clientTypes";
 import type { ActionType } from "@/lib/ai/loopcard";
@@ -109,11 +110,19 @@ export default function MultiScanView({
                 {it.resale_high > 0 && (
                   <span className="text-[11px] text-sky-700">€{it.resale_low}–{it.resale_high}</span>
                 )}
+                {it.scanId && (
+                  <Link
+                    href={`/dpp/${it.scanId}`}
+                    className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-semibold text-zinc-700 transition hover:bg-zinc-50"
+                  >
+                    DPP
+                  </Link>
+                )}
                 <button
                   onClick={() => onOpenItem(it)}
                   className="ml-auto rounded-full border border-emerald-300 bg-white px-3 py-1 text-[11px] font-semibold text-emerald-800 transition hover:bg-emerald-50"
                 >
-                  🔎 Prüfen &amp; Optionen
+                  🔎 Review &amp; options
                 </button>
                 <button
                   onClick={() => it.scanId && onConfirm(it.scanId, it.best_action as ActionType, it.co2_saved_kg)}

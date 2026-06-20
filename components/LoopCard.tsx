@@ -42,8 +42,8 @@ export default function LoopCard({
           NOT a real analysis of the uploaded photo. */}
       {scan.source === "mock-fallback" && (
         <div className="border-b border-amber-200 bg-amber-100 px-5 py-2.5 text-xs text-amber-900">
-          <span className="font-bold">⚠️ Live-KI nicht erreichbar.</span> Das ist eine Demo-Karte,
-          nicht euer echtes Foto. OpenAI-Konto braucht Guthaben/gültigen Key (Billing).
+          <span className="font-bold">⚠️ Live AI unavailable.</span> This is a demo card,
+          not your actual photo. The OpenAI account needs credit/a valid key (billing).
         </div>
       )}
 
@@ -52,7 +52,7 @@ export default function LoopCard({
       {others.length > 0 && (
         <div className="border-b border-sky-200 bg-sky-50 px-5 py-3">
           <p className="text-xs font-semibold text-sky-900">
-            👀 Mehrere Objekte erkannt — ich zeige <span className="font-bold">{card.item_name}</span>. Welches meinst du?
+            👀 Multiple objects detected — showing <span className="font-bold">{card.item_name}</span>. Which one did you mean?
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <span className="rounded-full bg-sky-600 px-2.5 py-1 text-[11px] font-semibold text-white">
@@ -74,10 +74,10 @@ export default function LoopCard({
               onClick={onScanNext}
               className="rounded-full border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-600 transition hover:bg-zinc-50"
             >
-              📷 Neu aufnehmen (nur 1 Objekt)
+              📷 Retake photo (1 object only)
             </button>
           </div>
-          {refining && <p className="mt-1.5 text-[11px] text-sky-700">Wechsle…</p>}
+          {refining && <p className="mt-1.5 text-[11px] text-sky-700">Switching…</p>}
         </div>
       )}
 
@@ -309,25 +309,25 @@ export default function LoopCard({
 }
 
 const CONDITION_OPTIONS: { key: "working" | "partial" | "broken"; label: string; emoji: string }[] = [
-  { key: "working", label: "Läuft", emoji: "✅" },
-  { key: "partial", label: "Teilweise", emoji: "⚠️" },
-  { key: "broken", label: "Kaputt", emoji: "🔧" },
+  { key: "working", label: "Works", emoji: "✅" },
+  { key: "partial", label: "Partial", emoji: "⚠️" },
+  { key: "broken", label: "Broken", emoji: "🔧" },
 ];
 
 // Context-aware "what's broken" quick-picks, chosen from the item's category.
 function damageChips(name: string, material: string): string[] {
   const s = `${name} ${material}`.toLowerCase();
   if (/(phone|smartphone|iphone|laptop|macbook|tablet|computer|keyboard|mouse|electronic|li-ion|akku|battery)/.test(s))
-    return ["Display gesprungen", "Akku schwach", "Geht nicht an", "Anschluss/Port defekt", "Wasserschaden", "Tasten/Knopf defekt"];
-  if (/(toaster|kettle|appliance|mixer|föhn|hairdryer|heiz|nichrome)/.test(s))
-    return ["Heizt nicht", "Kabel/Stecker defekt", "Schalter klemmt", "Macht keinen Strom"];
+    return ["Cracked display", "Weak battery", "Will not power on", "Port damaged", "Water damage", "Button/key damaged"];
+  if (/(toaster|kettle|appliance|mixer|hairdryer|heater|nichrome)/.test(s))
+    return ["Does not heat", "Cable/plug damaged", "Switch stuck", "No power"];
   if (/(shirt|jacket|jeans|cotton|textile|wool|kleid|hose|schuh|shoe)/.test(s))
-    return ["Loch/Riss", "Fleck", "Reißverschluss kaputt", "Knöpfe fehlen"];
-  if (/(chair|table|sofa|desk|wood|furniture|möbel|regal)/.test(s))
-    return ["Wackelt", "Kratzer", "Teil fehlt", "Bruch"];
+    return ["Hole/tear", "Stain", "Broken zipper", "Missing buttons"];
+  if (/(chair|table|sofa|desk|wood|furniture|shelf)/.test(s))
+    return ["Wobbly", "Scratched", "Missing part", "Broken"];
   if (/(watch|uhr|clock|wristwatch)/.test(s))
-    return ["Läuft nicht", "Batterie leer", "Glas zerkratzt", "Armband defekt"];
-  return ["Beschädigt", "Teil fehlt", "Funktioniert nicht", "Verschleiß", "Verschmutzt"];
+    return ["Not running", "Battery empty", "Scratched glass", "Strap damaged"];
+  return ["Damaged", "Missing part", "Not working", "Wear and tear", "Dirty"];
 }
 
 // Reusable review step (single- AND multi-scan via drill-in): specify the exact
@@ -374,25 +374,25 @@ function ItemReview({
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between rounded-2xl border border-zinc-200 bg-white/60 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-white"
       >
-        <span>🔎 Prüfen &amp; präzisieren — was ist es genau, ist es kaputt?</span>
+        <span>🔎 Review &amp; refine — what exactly is it, and is it broken?</span>
         <span className="text-zinc-400">{open ? "▲" : "▼"}</span>
       </button>
       {open && (
         <div className="mt-2 space-y-3 rounded-2xl border border-zinc-200 bg-white/80 p-3">
           <div>
             <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-zinc-400">
-              Was ist das genau?
+              What exactly is it?
             </label>
             <input
               value={specify}
               onChange={(e) => setSpecify(e.target.value)}
-              placeholder={`z. B. exaktes Modell statt „${card.item_name}"`}
+              placeholder={`e.g. exact model instead of "${card.item_name}"`}
               className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500"
             />
           </div>
           <div>
             <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-zinc-400">
-              Funktioniert es?
+              Does it work?
             </label>
             <div className="flex gap-1.5">
               {CONDITION_OPTIONS.map((o) => (
@@ -412,7 +412,7 @@ function ItemReview({
           {showIssues && (
             <div>
               <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-zinc-400">
-                Was ist kaputt?
+                What is broken?
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {chips.map((chip) => (
@@ -431,7 +431,7 @@ function ItemReview({
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="…oder frei beschreiben"
+                placeholder="…or describe it freely"
                 className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500"
               />
             </div>
@@ -442,7 +442,7 @@ function ItemReview({
             onClick={submit}
             className="w-full rounded-full bg-emerald-600 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
           >
-            {refining ? "Bewerte neu…" : "✨ Neu bewerten"}
+            {refining ? "Rescoring…" : "✨ Rescore"}
           </button>
         </div>
       )}

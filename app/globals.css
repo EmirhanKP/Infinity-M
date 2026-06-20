@@ -9,8 +9,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: system-ui, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 /* Brand tokens + mint-anchored emerald ramp so existing emerald-* utilities
@@ -36,7 +36,7 @@ html,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: system-ui, sans-serif;
 }
 
 /* Consistent light theme for the demo regardless of OS dark mode. */
@@ -56,7 +56,7 @@ body {
   scrollbar-width: none;
 }
 
-/* ── Wow layer: micro-interactions, glass, scan magic ──────────────────── */
+/* Wow layer: micro-interactions, glass, scan magic. */
 
 /* Satisfying press on every button (skips disabled). */
 button {

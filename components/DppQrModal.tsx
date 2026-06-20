@@ -14,12 +14,11 @@ export default function DppQrModal({
   onClose: () => void;
 }) {
   const [qr, setQr] = useState<string>("");
-  const [url, setUrl] = useState<string>("");
+  const url = `${pathPrefix}${scanId}`;
 
   useEffect(() => {
     const origin = window.location.origin;
     const passportUrl = `${origin}${pathPrefix}${scanId}`;
-    setUrl(passportUrl);
     QRCode.toDataURL(passportUrl, { width: 320, margin: 1, color: { dark: "#064e3b", light: "#ffffff" } })
       .then(setQr)
       .catch(() => {});
