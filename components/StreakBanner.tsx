@@ -1,38 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-function AnimatedNumber({ value, decimals = 0 }: { value: number; decimals?: number }) {
-  const [display, setDisplay] = useState(value);
-  const fromRef = useRef(value);
-  const rafRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const from = fromRef.current;
-    const to = value;
-    if (from === to) return;
-    const duration = 700;
-    let start: number | null = null;
-
-    const tick = (ts: number) => {
-      if (start === null) start = ts;
-      const p = Math.min(1, (ts - start) / duration);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setDisplay(from + (to - from) * eased);
-      if (p < 1) {
-        rafRef.current = requestAnimationFrame(tick);
-      } else {
-        fromRef.current = to;
-      }
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [value]);
-
-  return <>{display.toFixed(decimals)}</>;
-}
+import CountUp from "./CountUp";
 
 export interface StreakValues {
   loopPoints: number;
@@ -44,9 +12,9 @@ export interface StreakValues {
 export default function StreakBanner({ streak }: { streak: StreakValues }) {
   return (
     <div className="grid grid-cols-3 gap-2 rounded-2xl bg-[#101817] p-3 shadow-lg">
-      <Stat label="Loop Points" value={<AnimatedNumber value={streak.loopPoints} />} sub={`🔥 ${streak.currentStreakDays}-day streak`} />
-      <Stat label="CO₂ saved / wk" value={<><AnimatedNumber value={streak.weeklyCo2SavedKg} decimals={1} /> kg</>} sub="vs buying new" />
-      <Stat label="Waste diverted" value={<><AnimatedNumber value={streak.weeklyWasteDivertedKg} decimals={1} /> kg</>} sub="kept in the loop" />
+      <Stat label="Loop Points" value={<CountUp value={streak.loopPoints} />} sub={`🔥 ${streak.currentStreakDays}-day streak`} />
+      <Stat label="CO₂ saved / wk" value={<CountUp value={streak.weeklyCo2SavedKg} decimals={1} suffix=" kg" />} sub="vs buying new" />
+      <Stat label="Waste diverted" value={<CountUp value={streak.weeklyWasteDivertedKg} decimals={1} suffix=" kg" />} sub="kept in the loop" />
     </div>
   );
 }

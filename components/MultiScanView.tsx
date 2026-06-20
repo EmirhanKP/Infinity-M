@@ -23,6 +23,7 @@ export default function MultiScanView({
   municipality,
   onConfirm,
   onScanNext,
+  onOpenItem,
 }: {
   items: MultiItem[];
   previewUrl: string;
@@ -30,6 +31,7 @@ export default function MultiScanView({
   municipality: string;
   onConfirm: (scanId: string, actionType: ActionType, co2: number) => void;
   onScanNext: () => void;
+  onOpenItem: (item: MultiItem) => void;
 }) {
   const [active, setActive] = useState<number | null>(null);
   const totalCo2 = Math.round(items.reduce((s, i) => s + i.co2_saved_kg, 0) * 10) / 10;
@@ -108,8 +110,14 @@ export default function MultiScanView({
                   <span className="text-[11px] text-sky-700">€{it.resale_low}–{it.resale_high}</span>
                 )}
                 <button
+                  onClick={() => onOpenItem(it)}
+                  className="ml-auto rounded-full border border-emerald-300 bg-white px-3 py-1 text-[11px] font-semibold text-emerald-800 transition hover:bg-emerald-50"
+                >
+                  🔎 Prüfen &amp; Optionen
+                </button>
+                <button
                   onClick={() => it.scanId && onConfirm(it.scanId, it.best_action as ActionType, it.co2_saved_kg)}
-                  className={`ml-auto rounded-full px-3 py-1 text-[11px] font-semibold text-white ${meta.solid}`}
+                  className={`rounded-full px-3 py-1 text-[11px] font-semibold text-white ${meta.solid}`}
                 >
                   ✓ {meta.verb}
                 </button>

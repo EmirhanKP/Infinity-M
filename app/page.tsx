@@ -11,8 +11,34 @@ import Logo from "@/components/Logo";
 import RepairCoach from "@/components/RepairCoach";
 import ImpactCard from "@/components/ImpactCard";
 import ImpactTranslator from "@/components/ImpactTranslator";
+import Confetti from "@/components/Confetti";
+import ScanningOverlay from "@/components/ScanningOverlay";
+import { celebrate } from "@/lib/haptics";
 import type { ScanResponse, StreakValues } from "@/lib/clientTypes";
-import type { ActionType } from "@/lib/ai/loopcard";
+import type { ActionType, LoopCard as LoopCardData } from "@/lib/ai/loopcard";
+
+// Synthesize a minimal Loop Card from a multi-scan item so /api/refine has a
+// currentCard to work from when we drill a pile item into the full single view.
+function multiItemToCard(item: MultiItem): LoopCardData {
+  return {
+    item_name: item.label,
+    material: item.material,
+    brand_model_guess: "",
+    condition_score: item.condition_score,
+    circular_actions: [
+      { type: item.best_action, instructions: item.instruction, effort_1to5: 2, local_hint: item.local_hint },
+    ],
+    resale_estimate_eur: { low: item.resale_low, high: item.resale_high },
+    co2_saved_kg: item.co2_saved_kg,
+    recyclability_note: item.instruction,
+    alternatives: [],
+    recoverable_materials: { summary: "", est_value_eur: 0 },
+    dpp_fields: { material: item.material, recyclability: "AI-estimated", est_recycled_content_pct: 0 },
+    data_basis: "ai_estimate",
+    data_note: "From your pile scan — refine for precise figures.",
+    other_items_detected: [],
+  };
+}
 
 const ZERO_STREAK: StreakValues = {
   loopPoints: 0,
@@ -54,6 +80,8 @@ export default function Home() {
   const [showImpact, setShowImpact] = useState(false);
   const [showTranslator, setShowTranslator] = useState(false);
   const [refining, setRefining] = useState(false);
+  const [cheering, setCheering] = useState(false);
+  const [cameFromMulti, setCameFromMulti] = useState(false);
 
   useEffect(() => {
     if (sessionId === "anon") return;
@@ -107,6 +135,10 @@ export default function Home() {
       showToast(`+${gained > 0 ? gained : json.confirm.pointsAwarded} Loop Points`);
     } catch {
       showToast("Saved locally");
+    } finally {
+      // Celebrate the loop being closed — confetti + a haptic triple-tap.
+      celebrate();
+      setCheering(true);
     }
   }
 
@@ -135,6 +167,38 @@ export default function Home() {
     }
   }
 
+  // Drill a pile item into the full single Loop Card (re-analyzed live, focused
+  // on that one item) so each multi item gets the same rich options + review.
+  async function openMultiItem(item: MultiItem) {
+    setPhase("scanning");
+    try {
+      const res = await fetch("/api/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: lastImage,
+          mediaType: lastMedia,
+          sessionId,
+          correction: `Focus only on the ${item.label} in this photo and produce its Loop Card for that single item.`,
+          currentCard: multiItemToCard(item),
+        }),
+      });
+      const json = (await res.json()) as ScanResponse;
+      setScan(json);
+      setCameFromMulti(true);
+      setPhase("result");
+    } catch {
+      showToast("Konnte das Item nicht laden");
+      setPhase("result-multi");
+    }
+  }
+
+  function backToList() {
+    setScan(null);
+    setCameFromMulti(false);
+    setPhase("result-multi");
+  }
+
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 2200);
@@ -144,6 +208,7 @@ export default function Home() {
     setScan(null);
     setMulti(null);
     setPreviewUrl("");
+    setCameFromMulti(false);
     setPhase("scan");
   }
 
@@ -171,6 +236,12 @@ export default function Home() {
           >
             B2B →
           </Link>
+          <Link
+            href="/brand"
+            className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            Brands
+          </Link>
         </div>
       </header>
 
@@ -189,26 +260,21 @@ export default function Home() {
           )}
 
           {phase === "scanning" && (
-            <motion.div
-              key="scanning"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-col items-center gap-4 py-16"
-            >
-              {previewUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewUrl} alt="scanning" className="h-32 w-32 rounded-2xl object-cover shadow-lg" />
-              )}
-              <div className="flex items-center gap-2 text-emerald-700">
-                <span className="h-3 w-3 animate-ping rounded-full bg-emerald-500" />
-                <span className="text-sm font-medium">Reading & ranking circular actions…</span>
-              </div>
+            <motion.div key="scanning" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
+              <ScanningOverlay previewUrl={previewUrl} />
             </motion.div>
           )}
 
           {phase === "result" && scan && (
             <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
+              {cameFromMulti && (
+                <button
+                  onClick={backToList}
+                  className="mb-2 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+                >
+                  ← Zurück zur Liste
+                </button>
+              )}
               <LoopCard
                 scan={scan}
                 previewUrl={previewUrl}
@@ -230,11 +296,15 @@ export default function Home() {
                 municipality={multi.municipality}
                 onConfirm={handleConfirm}
                 onScanNext={scanNext}
+                onOpenItem={openMultiItem}
               />
             </motion.div>
           )}
         </AnimatePresence>
       </div>
+
+      {/* Celebration confetti */}
+      {cheering && <Confetti onDone={() => setCheering(false)} />}
 
       {/* Reward toast */}
       <AnimatePresence>

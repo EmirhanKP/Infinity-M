@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import Logo from "@/components/Logo";
+import CountUp from "@/components/CountUp";
 import type { DashboardData } from "@/lib/clientTypes";
 import { ACTION_META } from "@/lib/ui";
 import type { ActionType } from "@/lib/ai/loopcard";
@@ -31,12 +33,20 @@ export default function Dashboard() {
             </p>
           </div>
         </div>
-        <Link
-          href="/"
-          className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
-        >
-          ← Back to app
-        </Link>
+        <div className="flex shrink-0 gap-2">
+          <Link
+            href="/brand"
+            className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            For brands →
+          </Link>
+          <Link
+            href="/"
+            className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+          >
+            ← Back to app
+          </Link>
+        </div>
       </header>
 
       {!data ? (
@@ -45,9 +55,25 @@ export default function Dashboard() {
         <div className="space-y-6">
           {/* KPI row */}
           <div className="grid grid-cols-3 gap-3">
-            <Kpi label="Items scanned" value={data.totalScans.toString()} accent="text-emerald-700" />
-            <Kpi label="CO₂ saved (kg)" value={data.totalCo2SavedKg.toString()} accent="text-teal-700" />
-            <Kpi label="Waste diverted (kg)" value={data.totalWasteDivertedKg.toString()} accent="text-sky-700" />
+            <Kpi label="Items scanned" value={<CountUp value={data.totalScans} />} accent="text-emerald-700" />
+            <Kpi label="CO₂ saved (kg)" value={<CountUp value={data.totalCo2SavedKg} decimals={1} />} accent="text-teal-700" />
+            <Kpi label="Waste diverted (kg)" value={<CountUp value={data.totalWasteDivertedKg} decimals={1} />} accent="text-sky-700" />
+          </div>
+
+          {/* Revenue row — the money flowing through Reloop, not just CO₂ */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="glow-mint rounded-2xl border border-emerald-200 bg-white/70 p-4 text-center shadow-sm">
+              <div className="text-[11px] uppercase tracking-wide text-zinc-400">Routed GMV (trade-in)</div>
+              <div className="text-2xl font-extrabold text-emerald-700">
+                <CountUp value={data.routedGmvEur} prefix="€" />
+              </div>
+            </div>
+            <div className="glow-mint rounded-2xl border border-emerald-200 bg-white/70 p-4 text-center shadow-sm">
+              <div className="text-[11px] uppercase tracking-wide text-zinc-400">Reloop revenue</div>
+              <div className="text-2xl font-extrabold text-emerald-700">
+                <CountUp value={data.reloopRevenueEur} prefix="€" />
+              </div>
+            </div>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
@@ -67,7 +93,12 @@ export default function Dashboard() {
                         </span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
-                        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${a.share}%` }} />
+                        <motion.div
+                          className="h-full rounded-full bg-emerald-500"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${a.share}%` }}
+                          transition={{ duration: 0.8, ease: "easeOut" }}
+                        />
                       </div>
                     </div>
                   );
@@ -126,9 +157,9 @@ export default function Dashboard() {
   );
 }
 
-function Kpi({ label, value, accent }: { label: string; value: string; accent: string }) {
+function Kpi({ label, value, accent }: { label: string; value: React.ReactNode; accent: string }) {
   return (
-    <div className="rounded-2xl border border-zinc-100 bg-white p-4 text-center shadow-sm">
+    <div className="glass rounded-2xl border border-zinc-100 p-4 text-center shadow-sm">
       <div className="text-[11px] uppercase tracking-wide text-zinc-400">{label}</div>
       <div className={`text-2xl font-bold ${accent}`}>{value}</div>
     </div>
@@ -137,7 +168,7 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent: s
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-zinc-100 bg-white p-5 shadow-sm">
+    <section className="glass rounded-2xl border border-zinc-100 p-5 shadow-sm">
       <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-zinc-500">{title}</h2>
       {children}
     </section>

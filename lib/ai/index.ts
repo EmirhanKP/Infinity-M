@@ -24,7 +24,7 @@ import {
 } from "./live";
 import type { MultiScanItem, ListingResult, PartResult, AskResult } from "../clientTypes";
 
-// "mock" runs fully offline with no API key (default). "live" calls Claude and
+// "mock" runs fully offline with no API key (default). "live" calls OpenAI and
 // falls back to mock on any error so a flaky network never breaks the demo.
 export const AI_MODE = (process.env.RELOOP_AI_MODE || "mock").toLowerCase();
 export const IS_LIVE = AI_MODE === "live";

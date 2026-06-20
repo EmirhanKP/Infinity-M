@@ -55,3 +55,69 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ── Wow layer: micro-interactions, glass, scan magic ──────────────────── */
+
+/* Satisfying press on every button (skips disabled). */
+button {
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+}
+button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+/* Frosted-glass card surface over the mint gradient background. Kept high-opacity
+   so body text stays fully legible (the blur is the effect, not transparency). */
+.glass {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+/* Mint glow used to spotlight the "Best loop" verdict + primary CTAs. */
+.glow-mint {
+  box-shadow: 0 0 0 1px rgba(85, 230, 165, 0.4), 0 8px 30px -6px rgba(47, 208, 140, 0.45);
+}
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(85, 230, 165, 0.55); }
+  50% { box-shadow: 0 0 0 7px rgba(85, 230, 165, 0); }
+}
+.pulse-mint {
+  animation: glowPulse 2s ease-out infinite;
+}
+
+/* AI scan-line sweeping over the captured photo. */
+@keyframes scanSweep {
+  0% { top: 0%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+.scan-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 28px;
+  background: linear-gradient(
+    to bottom,
+    rgba(85, 230, 165, 0) 0%,
+    rgba(85, 230, 165, 0.55) 50%,
+    rgba(85, 230, 165, 0) 100%
+  );
+  animation: scanSweep 1.5s ease-in-out infinite;
+}
+
+/* Shimmer for "AI is thinking" surfaces. */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(110deg, transparent 30%, rgba(85, 230, 165, 0.18) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-line, .shimmer, .pulse-mint { animation: none; }
+}

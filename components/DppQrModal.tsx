@@ -4,18 +4,26 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import QRCode from "qrcode";
 
-export default function DppQrModal({ scanId, onClose }: { scanId: string; onClose: () => void }) {
+export default function DppQrModal({
+  scanId,
+  pathPrefix = "/dpp/",
+  onClose,
+}: {
+  scanId: string;
+  pathPrefix?: string;
+  onClose: () => void;
+}) {
   const [qr, setQr] = useState<string>("");
   const [url, setUrl] = useState<string>("");
 
   useEffect(() => {
     const origin = window.location.origin;
-    const passportUrl = `${origin}/dpp/${scanId}`;
+    const passportUrl = `${origin}${pathPrefix}${scanId}`;
     setUrl(passportUrl);
     QRCode.toDataURL(passportUrl, { width: 320, margin: 1, color: { dark: "#064e3b", light: "#ffffff" } })
       .then(setQr)
       .catch(() => {});
-  }, [scanId]);
+  }, [scanId, pathPrefix]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>

@@ -68,6 +68,7 @@ const CARDS: Record<DemoKey, LoopCard> = {
     },
     data_basis: "ai_estimate",
     data_note: "AI estimate from the photo — tap “Not right?” and add the exact model for model-specific figures.",
+    other_items_detected: [],
   },
   charger: {
     item_name: "Tangled phone charger / cable bundle",
@@ -107,6 +108,7 @@ const CARDS: Record<DemoKey, LoopCard> = {
     },
     data_basis: "ai_estimate",
     data_note: "AI estimate from the photo — material breakdown is approximate.",
+    other_items_detected: [],
   },
   jar: {
     item_name: "Empty glass jar with lid",
@@ -146,6 +148,7 @@ const CARDS: Record<DemoKey, LoopCard> = {
     },
     data_basis: "ai_estimate",
     data_note: "AI estimate from the photo — glass figures are typical values.",
+    other_items_detected: [],
   },
   toaster: {
     item_name: "Two-slice electric toaster (not heating)",
@@ -185,6 +188,7 @@ const CARDS: Record<DemoKey, LoopCard> = {
     },
     data_basis: "ai_estimate",
     data_note: "AI estimate from the photo — add the model/wattage for a precise repair cost.",
+    other_items_detected: [],
   },
   styrofoam: {
     item_name: "Polystyrene foam packaging block",
@@ -233,6 +237,7 @@ const CARDS: Record<DemoKey, LoopCard> = {
     },
     data_basis: "ai_estimate",
     data_note: "AI estimate from the photo — EPS has no recoverable value to refine.",
+    other_items_detected: [],
   },
 };
 
@@ -266,6 +271,7 @@ export function mockRefine(card: LoopCard, correction: string): LoopCard {
     resale_estimate_eur: mid > 0 ? { low: Math.round(mid * 0.9), high: Math.round(mid * 1.1) } : card.resale_estimate_eur,
     data_basis: "model_matched",
     data_note: `Matched to “${correction}” — figures now use this model’s known specifications.`,
+    other_items_detected: [],
   };
 }
 

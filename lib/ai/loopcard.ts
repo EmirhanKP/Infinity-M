@@ -66,10 +66,13 @@ export interface LoopCard {
   data_basis: "ai_estimate" | "model_matched";
   /** One-line explanation of where the figures come from. */
   data_note: string;
+  /** Other distinct items also visible in the photo (single-scan disambiguation).
+   *  Empty when the photo shows just one item. */
+  other_items_detected: string[];
 }
 
-// JSON Schema for Anthropic structured outputs (output_config.format).
-// Structured outputs require: all properties listed in `required`, and
+// JSON Schema for OpenAI structured outputs (response_format json_schema, strict).
+// Strict mode requires: all properties listed in `required`, and
 // `additionalProperties: false`. Numeric/length constraints are NOT supported
 // and are intentionally omitted.
 export const LOOP_CARD_JSON_SCHEMA = {
@@ -89,6 +92,7 @@ export const LOOP_CARD_JSON_SCHEMA = {
     "dpp_fields",
     "data_basis",
     "data_note",
+    "other_items_detected",
   ],
   properties: {
     item_name: { type: "string" },
@@ -156,6 +160,7 @@ export const LOOP_CARD_JSON_SCHEMA = {
     },
     data_basis: { type: "string", enum: ["ai_estimate", "model_matched"] },
     data_note: { type: "string" },
+    other_items_detected: { type: "array", items: { type: "string" } },
   },
 } as const;
 
@@ -177,6 +182,7 @@ Rules:
 7. Fill recoverable_materials with a short "urban mining" summary of valuable materials locked inside (e.g. gold, cobalt, copper, rare earths for electronics) and a rough est_value_eur (use 0 when there is no recoverable material value, e.g. glass or foam).
 8. Fill dpp_fields (material, recyclability class in plain words, est_recycled_content_pct) as draft Digital Product Passport data.
 9. Transparency (important): set data_basis to "model_matched" ONLY when the user has supplied a specific model name or serial number that lets you use known, published specifications; otherwise set it to "ai_estimate". In data_note, say in one sentence where the figures come from (e.g. "AI estimate from the photo — give the exact model for precise figures" or "Matched to <model> using its published specs").
+10. other_items_detected: if the photo clearly shows MULTIPLE distinct discardable items, set item_name to the SINGLE most prominent one and list the OTHER distinct item labels (short, e.g. "keyboard", "mouse") in other_items_detected so the user can switch. If there is only one clear item, return an empty array.
 
 Be specific and concise. Never invent a brand you cannot see. Always return valid data for every field.`;
 
@@ -188,6 +194,6 @@ Produce the Loop Card for the item in the image.`;
   if (!correction) return base;
   return `${base}
 
-The user tells you this item is specifically: "${correction}".
-Use this exact model/serial/name to look up its known specifications and give precise, model-specific figures. Set data_basis to "model_matched".`;
+The user has provided extra detail about this item: "${correction}".
+Use it to (a) identify the EXACT item the user means — if they name a specific item/model, focus on THAT one even if other things are visible, and set other_items_detected to an empty array; (b) assess its real condition (e.g. "broken", "screen cracked", "works fine") and recompute the best circular actions, resale band, repair guidance and CO₂ accordingly. If a specific model/serial is given, use its known specifications and set data_basis to "model_matched".`;
 }

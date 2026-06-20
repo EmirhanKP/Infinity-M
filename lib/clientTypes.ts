@@ -9,6 +9,8 @@ export interface DashboardData {
   totalScans: number;
   totalCo2SavedKg: number;
   totalWasteDivertedKg: number;
+  routedGmvEur: number;
+  reloopRevenueEur: number;
   actionBreakdown: { type: ActionType; count: number; share: number }[];
   materialFlow: { material: string; count: number; avgRecycledContentPct: number }[];
   sampleDpp: {
@@ -19,6 +21,36 @@ export interface DashboardData {
     confidence: "ai_estimated" | "document_backed";
   }[];
   recentItems: { itemName: string; bestActionType: ActionType; co2SavedKg: number }[];
+}
+
+export interface BrandPassportData {
+  id: string;
+  brand: string;
+  productName: string;
+  sku: string;
+  category: string;
+  material: string;
+  recyclability: string;
+  recycledContentPct: number;
+  repairabilityIndex: number;
+}
+
+export interface BrandDashboardData {
+  issuedCount: number;
+  totalEolEvents: number;
+  materialsTracked: number;
+  routedGmvEur: number;
+  reloopRevenueEur: number;
+  recentPassports: { id: string; brand: string; productName: string; category: string; createdAt: number }[];
+  eolIntelligence: {
+    material: string;
+    events: number;
+    reusePct: number;
+    recyclePct: number;
+    disposedPct: number;
+    avgConditionAtEol: number;
+    avgCo2SavedKg: number;
+  }[];
 }
 
 export interface ScanResponse {
@@ -84,6 +116,23 @@ export interface PartResult {
   price_eur: number;
   note: string;
   links: DeepLink[];
+}
+
+export interface TradeInQuote {
+  eligible: boolean;
+  category: string;
+  partner: string;
+  logistics: string;
+  payout: string;
+  instantOfferEur: number;
+  sellYourselfLow: number;
+  sellYourselfHigh: number;
+  /** Mid-market value the partner settles at — basis for Reloop's margin. */
+  marketValueEur: number;
+  serviceFeePct: number;
+  /** Reloop's gross revenue on this single transaction (the business case). */
+  reloopMarginEur: number;
+  note: string;
 }
 
 export interface AskResult {

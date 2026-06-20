@@ -50,10 +50,39 @@ export interface StreakRecord {
   lastActionAt: number;
 }
 
+// An accepted instant-buyback. Records the money flowing through Reloop so the
+// dashboards can show Routed GMV + Reloop revenue, not just CO₂.
+export interface TradeInRecord {
+  id: string;
+  createdAt: number;
+  itemName: string;
+  category: string;
+  instantOfferEur: number;
+  marketValueEur: number;
+  reloopMarginEur: number;
+}
+
+// A passport ISSUED by a brand/manufacturer through the B2B console. Unlike the
+// consumer scan draft, this is document-backed — the paid, compliance-grade DPP.
+export interface BrandPassport {
+  id: string;
+  createdAt: number;
+  brand: string;
+  productName: string;
+  sku: string;
+  category: string;
+  material: string;
+  recyclability: string;
+  recycledContentPct: number;
+  repairabilityIndex: number; // 0-10, drives EPR eco-modulation
+}
+
 interface DbShape {
   scans: ScanRecord[];
   confirms: ConfirmRecord[];
   streaks: Record<string, StreakRecord>;
+  brandPassports?: BrandPassport[];
+  tradeIns?: TradeInRecord[];
 }
 
 // Seed so the dashboard looks alive on first load (anonymized aggregate feed)
@@ -90,9 +119,18 @@ function seed(): DbShape {
     recoverableValueEur: 0,
     recoverableSummary: "",
   }));
+  // A few accepted buybacks so the dashboard shows live GMV + revenue on load.
+  const tradeIns: TradeInRecord[] = [
+    { id: "seed-ti-0", createdAt: now - day, itemName: "iPhone 12", category: "Electronics", instantOfferEur: 165, marketValueEur: 230, reloopMarginEur: 65 },
+    { id: "seed-ti-1", createdAt: now - 2 * day, itemName: "Bluetooth speaker", category: "Electronics", instantOfferEur: 28, marketValueEur: 41, reloopMarginEur: 13 },
+    { id: "seed-ti-2", createdAt: now - 2 * day, itemName: "Wooden chair", category: "Furniture", instantOfferEur: 22, marketValueEur: 33, reloopMarginEur: 11 },
+    { id: "seed-ti-3", createdAt: now - 3 * day, itemName: "Denim jacket", category: "Textiles", instantOfferEur: 14, marketValueEur: 22, reloopMarginEur: 8 },
+    { id: "seed-ti-4", createdAt: now - 4 * day, itemName: "Toaster", category: "Small appliances", instantOfferEur: 9, marketValueEur: 15, reloopMarginEur: 6 },
+  ];
   return {
     scans,
     confirms: [],
+    tradeIns,
     streaks: {
       // a believable demo streak for the home banner
       "demo-seed": {
@@ -282,6 +320,8 @@ export interface DashboardData {
   totalScans: number;
   totalCo2SavedKg: number;
   totalWasteDivertedKg: number;
+  routedGmvEur: number;
+  reloopRevenueEur: number;
   actionBreakdown: { type: ActionType; count: number; share: number }[];
   materialFlow: { material: string; count: number; avgRecycledContentPct: number }[];
   sampleDpp: {
@@ -300,6 +340,9 @@ export async function getDashboard(): Promise<DashboardData> {
   const totalScans = scans.length;
   const totalCo2 = round1(scans.reduce((s, r) => s + r.co2SavedKg, 0));
   const totalWaste = round1(db.confirms.reduce((s, c) => s + c.wasteDivertedKg, 0));
+  const tradeIns = db.tradeIns ?? [];
+  const routedGmvEur = Math.round(tradeIns.reduce((s, t) => s + t.marketValueEur, 0));
+  const reloopRevenueEur = Math.round(tradeIns.reduce((s, t) => s + t.reloopMarginEur, 0));
 
   const actionCounts = new Map<ActionType, number>();
   for (const r of scans) actionCounts.set(r.bestActionType, (actionCounts.get(r.bestActionType) ?? 0) + 1);
@@ -340,6 +383,8 @@ export async function getDashboard(): Promise<DashboardData> {
     totalScans,
     totalCo2SavedKg: totalCo2,
     totalWasteDivertedKg: totalWaste,
+    routedGmvEur,
+    reloopRevenueEur,
     actionBreakdown,
     materialFlow,
     sampleDpp,
@@ -364,4 +409,135 @@ function bucketMaterial(m: string): string {
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
+}
+
+// ── Trade-in revenue ────────────────────────────────────────────────────────
+
+export async function recordTradeIn(input: {
+  itemName: string;
+  category: string;
+  instantOfferEur: number;
+  marketValueEur: number;
+  reloopMarginEur: number;
+}): Promise<TradeInRecord> {
+  const db = await load();
+  if (!db.tradeIns) db.tradeIns = [];
+  const rec: TradeInRecord = {
+    id: id("ti"),
+    createdAt: Date.now(),
+    itemName: input.itemName,
+    category: input.category,
+    instantOfferEur: Math.round(input.instantOfferEur),
+    marketValueEur: Math.round(input.marketValueEur),
+    reloopMarginEur: Math.round(input.reloopMarginEur),
+  };
+  db.tradeIns.push(rec);
+  await persist();
+  return rec;
+}
+
+// ── B2B: brand DPP issuance + end-of-life intelligence ──────────────────────
+
+const REUSE_ACTIONS: ActionType[] = ["repair", "resell", "donate"];
+
+export async function issueBrandPassport(input: {
+  brand: string;
+  productName: string;
+  sku: string;
+  category: string;
+  material: string;
+  recyclability: string;
+  recycledContentPct: number;
+  repairabilityIndex: number;
+}): Promise<BrandPassport> {
+  const db = await load();
+  if (!db.brandPassports) db.brandPassports = [];
+  const passport: BrandPassport = {
+    id: id("dpp"),
+    createdAt: Date.now(),
+    brand: input.brand.trim() || "Unbranded",
+    productName: input.productName.trim() || "Product",
+    sku: input.sku.trim(),
+    category: input.category.trim(),
+    material: input.material.trim(),
+    recyclability: input.recyclability.trim(),
+    recycledContentPct: Math.max(0, Math.min(100, Math.round(input.recycledContentPct))),
+    repairabilityIndex: Math.max(0, Math.min(10, Math.round(input.repairabilityIndex))),
+  };
+  db.brandPassports.push(passport);
+  await persist();
+  return passport;
+}
+
+export async function getBrandPassportById(passportId: string): Promise<BrandPassport | null> {
+  const db = await load();
+  return db.brandPassports?.find((p) => p.id === passportId) ?? null;
+}
+
+export interface BrandDashboard {
+  issuedCount: number;
+  totalEolEvents: number;
+  materialsTracked: number;
+  routedGmvEur: number;
+  reloopRevenueEur: number;
+  recentPassports: { id: string; brand: string; productName: string; category: string; createdAt: number }[];
+  eolIntelligence: {
+    material: string;
+    events: number;
+    reusePct: number; // repaired/resold/donated — stayed in the loop
+    recyclePct: number;
+    disposedPct: number;
+    avgConditionAtEol: number;
+    avgCo2SavedKg: number;
+  }[];
+}
+
+// The moat: aggregate REAL downstream end-of-life outcomes (from consumer scans)
+// that brands are legally pushed to report (ESPR/EPR) but cannot otherwise see.
+export async function getBrandData(): Promise<BrandDashboard> {
+  const db = await load();
+  const scans = db.scans;
+  const passports = db.brandPassports ?? [];
+  const tradeIns = db.tradeIns ?? [];
+
+  const byMat = new Map<
+    string,
+    { events: number; reuse: number; recycle: number; disposed: number; condSum: number; co2Sum: number }
+  >();
+  for (const s of scans) {
+    const key = bucketMaterial(s.dppMaterial || s.material);
+    const cur = byMat.get(key) ?? { events: 0, reuse: 0, recycle: 0, disposed: 0, condSum: 0, co2Sum: 0 };
+    cur.events += 1;
+    if (REUSE_ACTIONS.includes(s.bestActionType)) cur.reuse += 1;
+    else if (s.bestActionType === "recycle") cur.recycle += 1;
+    else cur.disposed += 1;
+    cur.condSum += s.conditionScore;
+    cur.co2Sum += s.co2SavedKg;
+    byMat.set(key, cur);
+  }
+
+  const eolIntelligence = Array.from(byMat.entries())
+    .map(([material, v]) => ({
+      material,
+      events: v.events,
+      reusePct: Math.round((v.reuse / v.events) * 100),
+      recyclePct: Math.round((v.recycle / v.events) * 100),
+      disposedPct: Math.round((v.disposed / v.events) * 100),
+      avgConditionAtEol: round1(v.condSum / v.events),
+      avgCo2SavedKg: round1(v.co2Sum / v.events),
+    }))
+    .sort((a, b) => b.events - a.events);
+
+  return {
+    issuedCount: passports.length,
+    totalEolEvents: scans.length,
+    materialsTracked: eolIntelligence.length,
+    routedGmvEur: Math.round(tradeIns.reduce((s, t) => s + t.marketValueEur, 0)),
+    reloopRevenueEur: Math.round(tradeIns.reduce((s, t) => s + t.reloopMarginEur, 0)),
+    recentPassports: passports
+      .slice(-6)
+      .reverse()
+      .map((p) => ({ id: p.id, brand: p.brand, productName: p.productName, category: p.category, createdAt: p.createdAt })),
+    eolIntelligence,
+  };
 }

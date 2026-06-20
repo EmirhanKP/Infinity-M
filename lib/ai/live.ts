@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import type { LoopCard } from "./loopcard";
 import { ACTION_ORDER, LOOP_CARD_JSON_SCHEMA, SCAN_SYSTEM_PROMPT, buildScanUserText } from "./loopcard";
 import type { RepairStepResult, ResaleGrounding } from "./mock";
@@ -6,48 +6,34 @@ import type { MultiScanItem, ListingResult, PartResult, AskResult } from "../cli
 import type { MunicipalityRule } from "../municipality";
 import { municipalityBlock } from "../municipality";
 
-// Model selection (overridable per the user's key/org).
-// claude-fable-5: vision + structured output, thinking always on (omit `thinking`),
-// effort lives inside output_config. claude-haiku-4-5: fast/cheap, but `effort` errors there.
-const SCAN_MODEL = process.env.RELOOP_SCAN_MODEL || "claude-fable-5";
-const REPAIR_MODEL = process.env.RELOOP_REPAIR_MODEL || "claude-haiku-4-5";
+// Model selection (overridable per env). gpt-5.4-mini is multimodal (vision),
+// supports strict structured outputs + the web_search tool, and is ~3x cheaper
+// than gpt-5.4. Bump RELOOP_SCAN_MODEL=gpt-5.4 if the hero scan ever
+// misidentifies a real photo on stage.
+const SCAN_MODEL = process.env.RELOOP_SCAN_MODEL || "gpt-5.4-mini";
+const REPAIR_MODEL = process.env.RELOOP_REPAIR_MODEL || "gpt-5.4-mini";
 const RESALE_MODEL = process.env.RELOOP_RESALE_MODEL || SCAN_MODEL;
 
-let _client: Anthropic | null = null;
-function client(): Anthropic {
-  if (!_client) _client = new Anthropic(); // reads ANTHROPIC_API_KEY
+// Low reasoning effort keeps the structured calls fast + cheap; the tasks are
+// perception/extraction, not deep reasoning.
+const REASONING_EFFORT = "low";
+
+let _client: OpenAI | null = null;
+function client(): OpenAI {
+  if (!_client) _client = new OpenAI(); // reads OPENAI_API_KEY
   return _client;
 }
 
-/** Haiku rejects output_config.effort; everything else accepts it. */
-function effortFor(model: string): "low" | "medium" | "high" | undefined {
-  if (model.includes("haiku")) return undefined;
-  return "medium";
+function dataUrl(imageBase64: string, mediaType: string): string {
+  return `data:${mediaType};base64,${imageBase64}`;
 }
 
-function imageBlock(imageBase64: string, mediaType: string) {
-  return {
-    type: "image" as const,
-    source: {
-      type: "base64" as const,
-      media_type: mediaType,
-      data: imageBase64,
-    },
-  };
-}
-
-function firstText(content: Anthropic.Messages.ContentBlock[]): string {
-  for (const block of content) {
-    if (block.type === "text") return block.text;
-  }
-  throw new Error("No text block in model response");
-}
-
-// A structured (json_schema) call. We pass output_config via a cast because the
-// raw json_schema form is newer than some SDK type definitions; the wire shape
-// is correct per the structured-outputs API.
+// A structured (json_schema) chat completion with an image. OpenAI strict mode
+// needs `additionalProperties: false` + every key in `required`, which our
+// schemas already satisfy, so they are drop-in.
 async function structuredVisionCall<T>(opts: {
   model: string;
+  schemaName: string;
   system: string;
   userText: string;
   imageBase64: string;
@@ -55,29 +41,74 @@ async function structuredVisionCall<T>(opts: {
   schema: unknown;
   maxTokens?: number;
 }): Promise<T> {
-  const effort = effortFor(opts.model);
   const params: Record<string, unknown> = {
     model: opts.model,
-    max_tokens: opts.maxTokens ?? 12000,
-    system: opts.system,
-    output_config: {
-      format: { type: "json_schema", schema: opts.schema },
-      ...(effort ? { effort } : {}),
-    },
+    max_completion_tokens: opts.maxTokens ?? 16000,
+    reasoning_effort: REASONING_EFFORT,
     messages: [
+      { role: "system", content: opts.system },
       {
         role: "user",
-        content: [imageBlock(opts.imageBase64, opts.mediaType), { type: "text", text: opts.userText }],
+        content: [
+          { type: "text", text: opts.userText },
+          { type: "image_url", image_url: { url: dataUrl(opts.imageBase64, opts.mediaType) } },
+        ],
       },
     ],
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: opts.schemaName, schema: opts.schema, strict: true },
+    },
   };
 
-  const res = (await client().messages.create(params as never)) as Anthropic.Messages.Message;
+  const res = (await client().chat.completions.create(params as never)) as OpenAI.Chat.Completions.ChatCompletion;
+  const msg = res.choices[0]?.message;
+  if (msg?.refusal) throw new Error("Model refused the request (safety classifier).");
+  if (!msg?.content) throw new Error("No content in model response");
+  return JSON.parse(msg.content) as T;
+}
 
-  if (res.stop_reason === "refusal") {
-    throw new Error("Model refused the request (safety classifier).");
-  }
-  return JSON.parse(firstText(res.content)) as T;
+// A structured text-only chat completion (no image).
+async function structuredTextCall<T>(opts: {
+  model: string;
+  schemaName: string;
+  system: string;
+  userText: string;
+  schema: unknown;
+  maxTokens?: number;
+}): Promise<T> {
+  const params: Record<string, unknown> = {
+    model: opts.model,
+    max_completion_tokens: opts.maxTokens ?? 4000,
+    reasoning_effort: REASONING_EFFORT,
+    messages: [
+      { role: "system", content: opts.system },
+      { role: "user", content: opts.userText },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: opts.schemaName, schema: opts.schema, strict: true },
+    },
+  };
+  const res = (await client().chat.completions.create(params as never)) as OpenAI.Chat.Completions.ChatCompletion;
+  const msg = res.choices[0]?.message;
+  if (msg?.refusal) throw new Error("refusal");
+  if (!msg?.content) throw new Error("No content in model response");
+  return JSON.parse(msg.content) as T;
+}
+
+// Live web search via the Responses API web_search tool. Returns the model's
+// grounded prose; a follow-up structured call then extracts strict JSON. (Search
+// + strict JSON are split into two steps so citations and schema don't collide.)
+async function webSearch(model: string, instructions: string, input: string): Promise<string> {
+  const params: Record<string, unknown> = {
+    model,
+    instructions,
+    input,
+    tools: [{ type: "web_search" }],
+  };
+  const res = (await client().responses.create(params as never)) as { output_text?: string };
+  return (res.output_text ?? "").trim();
 }
 
 export async function liveLoopCard(
@@ -87,6 +118,7 @@ export async function liveLoopCard(
 ): Promise<LoopCard> {
   return structuredVisionCall<LoopCard>({
     model: SCAN_MODEL,
+    schemaName: "loop_card",
     system: SCAN_SYSTEM_PROMPT,
     userText: buildScanUserText(municipalityBlock(rule)),
     imageBase64,
@@ -103,36 +135,13 @@ export async function liveRefine(
 ): Promise<LoopCard> {
   return structuredVisionCall<LoopCard>({
     model: SCAN_MODEL,
+    schemaName: "loop_card",
     system: SCAN_SYSTEM_PROMPT,
     userText: buildScanUserText(municipalityBlock(rule), correction),
     imageBase64,
     mediaType,
     schema: LOOP_CARD_JSON_SCHEMA,
   });
-}
-
-// A structured text-only call (no image).
-async function structuredTextCall<T>(opts: {
-  model: string;
-  system: string;
-  userText: string;
-  schema: unknown;
-  maxTokens?: number;
-}): Promise<T> {
-  const effort = effortFor(opts.model);
-  const params: Record<string, unknown> = {
-    model: opts.model,
-    max_tokens: opts.maxTokens ?? 2000,
-    system: opts.system,
-    output_config: {
-      format: { type: "json_schema", schema: opts.schema },
-      ...(effort ? { effort } : {}),
-    },
-    messages: [{ role: "user", content: opts.userText }],
-  };
-  const res = (await client().messages.create(params as never)) as Anthropic.Messages.Message;
-  if (res.stop_reason === "refusal") throw new Error("refusal");
-  return JSON.parse(firstText(res.content)) as T;
 }
 
 const MULTI_SCAN_SCHEMA = {
@@ -195,12 +204,13 @@ Be accurate with boxes so they can be drawn over the image.`;
   const userText = `Municipality ruleset:\n${municipalityBlock(rule)}\n\nDetect and triage every item in the image.`;
   const res = await structuredVisionCall<{ items: MultiScanItem[] }>({
     model: SCAN_MODEL,
+    schemaName: "multi_scan",
     system,
     userText,
     imageBase64,
     mediaType,
     schema: MULTI_SCAN_SCHEMA,
-    maxTokens: 16000,
+    maxTokens: 20000,
   });
   return res.items;
 }
@@ -228,112 +238,82 @@ export async function liveListing(
   const system =
     "You write ready-to-post secondhand marketplace listings (Vinted / Back Market style) that help an item find a second life. Output a catchy title, a friendly 2-3 sentence description, a fair EUR price within the given band, a sensible category, and a Vinted new-listing URL prefilled with a search for the item.";
   const userText = `Item: ${itemName}\nMaterial: ${material}\nCondition: ${conditionScore}/10\nResale band: €${resaleLow}-${resaleHigh}\nWrite the listing.`;
-  return structuredTextCall<ListingResult>({ model: SCAN_MODEL, system, userText, schema: LISTING_SCHEMA });
-}
-
-export async function liveAsk(question: string): Promise<AskResult> {
-  const searchRes = (await client().messages.create({
-    model: RESALE_MODEL,
-    max_tokens: 4000,
-    system:
-      "You answer questions about the circular economy, recycling, repair and product sustainability for a general audience: accurate, encouraging, and concrete. Prefer authoritative sources (EU, UN, Ellen MacArthur Foundation, Our World in Data, peer-reviewed). Keep the answer to 3-5 sentences.",
-    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }],
-    messages: [{ role: "user", content: question }],
-  } as never)) as Anthropic.Messages.Message;
-
-  let res = searchRes;
-  for (let i = 0; i < 4 && res.stop_reason === "pause_turn"; i++) {
-    res = (await client().messages.create({
-      model: RESALE_MODEL,
-      max_tokens: 4000,
-      messages: [{ role: "assistant", content: res.content }],
-    } as never)) as Anthropic.Messages.Message;
-  }
-  const findings = res.content.map((b) => (b.type === "text" ? b.text : "")).join("\n").trim();
-
-  const schema = {
-    type: "object",
-    additionalProperties: false,
-    required: ["answer", "sources"],
-    properties: {
-      answer: { type: "string" },
-      sources: {
-        type: "array",
-        items: {
-          type: "object",
-          additionalProperties: false,
-          required: ["label", "url"],
-          properties: { label: { type: "string" }, url: { type: "string" } },
-        },
-      },
-    },
-  } as const;
-
-  return structuredTextCall<AskResult>({
-    model: RESALE_MODEL,
-    system: "Turn the research notes into a short, friendly answer with 1-3 cited sources, as strict JSON.",
-    userText: `Question: ${question}\n\nResearch notes:\n${findings || "(no sources found)"}`,
-    schema,
+  return structuredTextCall<ListingResult>({
+    model: SCAN_MODEL,
+    schemaName: "listing",
+    system,
+    userText,
+    schema: LISTING_SCHEMA,
   });
 }
 
-export async function liveParts(itemName: string, brandModel: string): Promise<PartResult> {
-  const searchRes = (await client().messages.create({
-    model: RESALE_MODEL,
-    max_tokens: 4000,
-    system:
-      "You find the exact replacement part / repair kit for a specific device and its current price on EU sites. Search before answering and surface real product/guide URLs.",
-    tools: [
-      {
-        type: "web_search_20260209",
-        name: "web_search",
-        max_uses: 3,
-        allowed_domains: ["ifixit.com", "amazon.de", "ebay.de"],
-      },
-    ],
-    messages: [
-      {
-        role: "user",
-        content: `Find the exact replacement part or repair kit for: "${itemName}"${brandModel ? ` (${brandModel})` : ""}. Give the part name, a EUR price, and 1-3 real URLs.`,
-      },
-    ],
-  } as never)) as Anthropic.Messages.Message;
-
-  let res = searchRes;
-  for (let i = 0; i < 4 && res.stop_reason === "pause_turn"; i++) {
-    res = (await client().messages.create({
-      model: RESALE_MODEL,
-      max_tokens: 4000,
-      messages: [{ role: "assistant", content: res.content }],
-    } as never)) as Anthropic.Messages.Message;
-  }
-  const findings = res.content.map((b) => (b.type === "text" ? b.text : "")).join("\n").trim();
-
-  const schema = {
-    type: "object",
-    additionalProperties: false,
-    required: ["part_name", "price_eur", "note", "links"],
-    properties: {
-      part_name: { type: "string" },
-      price_eur: { type: "integer" },
-      note: { type: "string" },
-      links: {
-        type: "array",
-        items: {
-          type: "object",
-          additionalProperties: false,
-          required: ["label", "url"],
-          properties: { label: { type: "string" }, url: { type: "string" } },
-        },
+const ASK_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["answer", "sources"],
+  properties: {
+    answer: { type: "string" },
+    sources: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["label", "url"],
+        properties: { label: { type: "string" }, url: { type: "string" } },
       },
     },
-  } as const;
+  },
+} as const;
+
+export async function liveAsk(question: string): Promise<AskResult> {
+  const findings = await webSearch(
+    RESALE_MODEL,
+    "You answer questions about the circular economy, recycling, repair and product sustainability for a general audience: accurate, encouraging, and concrete. Prefer authoritative sources (EU, UN, Ellen MacArthur Foundation, Our World in Data, peer-reviewed). Keep the answer to 3-5 sentences and include the source URLs you used.",
+    question,
+  );
+
+  return structuredTextCall<AskResult>({
+    model: RESALE_MODEL,
+    schemaName: "ask_answer",
+    system: "Turn the research notes into a short, friendly answer with 1-3 cited sources, as strict JSON.",
+    userText: `Question: ${question}\n\nResearch notes:\n${findings || "(no sources found)"}`,
+    schema: ASK_SCHEMA,
+  });
+}
+
+const PARTS_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["part_name", "price_eur", "note", "links"],
+  properties: {
+    part_name: { type: "string" },
+    price_eur: { type: "integer" },
+    note: { type: "string" },
+    links: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["label", "url"],
+        properties: { label: { type: "string" }, url: { type: "string" } },
+      },
+    },
+  },
+} as const;
+
+export async function liveParts(itemName: string, brandModel: string): Promise<PartResult> {
+  const findings = await webSearch(
+    RESALE_MODEL,
+    "You find the exact replacement part / repair kit for a specific device and its current price on EU sites (prefer ifixit.com, amazon.de, ebay.de). Search before answering and surface real product/guide URLs.",
+    `Find the exact replacement part or repair kit for: "${itemName}"${brandModel ? ` (${brandModel})` : ""}. Give the part name, a EUR price, and 1-3 real URLs.`,
+  );
 
   return structuredTextCall<PartResult>({
     model: RESALE_MODEL,
+    schemaName: "part_result",
     system: "Extract the replacement-part summary as strict JSON from the research notes.",
     userText: `Item: ${itemName}\n\nResearch notes:\n${findings || "(no part found)"}`,
-    schema,
+    schema: PARTS_SCHEMA,
   });
 }
 
@@ -363,95 +343,50 @@ They are on step ${stepIndex + 1} of ${totalSteps}: "${currentStep}".
 Look at their progress photo. Confirm whether the step is done correctly; if yes, give the next concrete step; if not, say exactly what to fix. Set done=true only if this was the final step. Be encouraging and concrete.`;
   return structuredVisionCall<RepairStepResult>({
     model: REPAIR_MODEL,
+    schemaName: "repair_step",
     system,
     userText: "Here is my progress photo. How did I do, and what's next?",
     imageBase64,
     mediaType,
     schema: REPAIR_STEP_SCHEMA,
-    maxTokens: 2000,
+    maxTokens: 4000,
   });
 }
 
-// Confidence-gated resale grounding via the web_search server tool. We run search
-// (no structured output — they can't combine with citations), then a small
-// follow-up structured call extracts a tightened band + cited links.
-export async function liveResale(
-  itemName: string,
-  conditionNote: string,
-): Promise<ResaleGrounding> {
-  const searchRes = (await client().messages.create({
-    model: RESALE_MODEL,
-    max_tokens: 4000,
-    system:
-      "You find live secondhand price comparisons for a specific item on EU resale marketplaces. When unsure of the price, search before answering and surface real listing URLs.",
-    tools: [
-      {
-        type: "web_search_20260209",
-        name: "web_search",
-        max_uses: 3,
-        allowed_domains: ["vinted.com", "vinted.de", "backmarket.com", "backmarket.de", "ifixit.com"],
+const RESALE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["low", "high", "links", "note"],
+  properties: {
+    low: { type: "integer" },
+    high: { type: "integer" },
+    links: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["label", "url"],
+        properties: { label: { type: "string" }, url: { type: "string" } },
       },
-    ],
-    messages: [
-      {
-        role: "user",
-        content: `Find current secondhand price comps for: "${itemName}" (${conditionNote}). Give a EUR price band and 1-3 real listing/guide URLs.`,
-      },
-    ],
-  } as never)) as Anthropic.Messages.Message;
-
-  // Resolve any pause_turn from the server-tool loop (bounded).
-  let res = searchRes;
-  for (let i = 0; i < 4 && res.stop_reason === "pause_turn"; i++) {
-    res = (await client().messages.create({
-      model: RESALE_MODEL,
-      max_tokens: 4000,
-      messages: [{ role: "assistant", content: res.content }],
-    } as never)) as Anthropic.Messages.Message;
-  }
-
-  const findings = res.content
-    .map((b) => (b.type === "text" ? b.text : ""))
-    .join("\n")
-    .trim();
-
-  const extractSchema = {
-    type: "object",
-    additionalProperties: false,
-    required: ["low", "high", "links", "note"],
-    properties: {
-      low: { type: "integer" },
-      high: { type: "integer" },
-      links: {
-        type: "array",
-        items: {
-          type: "object",
-          additionalProperties: false,
-          required: ["label", "url"],
-          properties: { label: { type: "string" }, url: { type: "string" } },
-        },
-      },
-      note: { type: "string" },
     },
-  } as const;
+    note: { type: "string" },
+  },
+} as const;
 
-  const effort = effortFor(RESALE_MODEL);
-  const extract = (await client().messages.create({
+// Confidence-gated resale grounding: web search for live comps, then a small
+// structured call extracts a tightened band + cited links.
+export async function liveResale(itemName: string, conditionNote: string): Promise<ResaleGrounding> {
+  const findings = await webSearch(
+    RESALE_MODEL,
+    "You find live secondhand price comparisons for a specific item on EU resale marketplaces (prefer vinted.com, vinted.de, backmarket.com, backmarket.de). When unsure of the price, search before answering and surface real listing URLs.",
+    `Find current secondhand price comps for: "${itemName}" (${conditionNote}). Give a EUR price band and 1-3 real listing/guide URLs.`,
+  );
+
+  return structuredTextCall<ResaleGrounding>({
     model: RESALE_MODEL,
-    max_tokens: 2000,
+    schemaName: "resale_grounding",
     system: "Extract a resale summary as strict JSON from the provided research notes.",
-    output_config: {
-      format: { type: "json_schema", schema: extractSchema },
-      ...(effort ? { effort } : {}),
-    },
-    messages: [
-      {
-        role: "user",
-        content: `Item: ${itemName}\n\nResearch notes:\n${findings || "(no comps found)"}`,
-      },
-    ],
-  } as never)) as Anthropic.Messages.Message;
-
-  if (extract.stop_reason === "refusal") throw new Error("refusal");
-  return JSON.parse(firstText(extract.content)) as ResaleGrounding;
+    userText: `Item: ${itemName}\n\nResearch notes:\n${findings || "(no comps found)"}`,
+    schema: RESALE_SCHEMA,
+  });
 }
