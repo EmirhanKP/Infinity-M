@@ -53,14 +53,12 @@ export default function Dashboard() {
         <p className="text-sm text-zinc-500">Loading aggregates…</p>
       ) : (
         <div className="space-y-6">
-          {/* KPI row */}
           <div className="grid grid-cols-3 gap-3">
             <Kpi label="Items scanned" value={<CountUp value={data.totalScans} />} accent="text-emerald-700" />
             <Kpi label="CO₂ saved (kg)" value={<CountUp value={data.totalCo2SavedKg} decimals={1} />} accent="text-teal-700" />
             <Kpi label="Waste diverted (kg)" value={<CountUp value={data.totalWasteDivertedKg} decimals={1} />} accent="text-sky-700" />
           </div>
 
-          {/* Revenue row — the money flowing through Reloop, not just CO₂ */}
           <div className="grid grid-cols-2 gap-3">
             <div className="glow-mint rounded-2xl border border-emerald-200 bg-white/70 p-4 text-center shadow-sm">
               <div className="text-[11px] uppercase tracking-wide text-zinc-400">Routed GMV (trade-in)</div>
@@ -77,7 +75,6 @@ export default function Dashboard() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Action breakdown */}
             <Panel title="Circular decisions (waste hierarchy)">
               <div className="space-y-2">
                 {data.actionBreakdown.map((a) => {
@@ -106,7 +103,6 @@ export default function Dashboard() {
               </div>
             </Panel>
 
-            {/* Material flow */}
             <Panel title="Material flow (by family)">
               <div className="space-y-2">
                 {data.materialFlow.map((m) => (
@@ -121,7 +117,6 @@ export default function Dashboard() {
             </Panel>
           </div>
 
-          {/* Sample DPPs */}
           <Panel title="Auto-filled Digital Product Passports (ESPR-aligned drafts)">
             <div className="grid gap-3 sm:grid-cols-2">
               {data.sampleDpp.map((d, i) => (

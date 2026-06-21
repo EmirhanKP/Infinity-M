@@ -51,7 +51,6 @@ export default function MultiScanView({
         <p className="text-xs text-zinc-500">One photo → the AI triaged your whole pile · {municipality}</p>
       </div>
 
-      {/* Image with bounding boxes */}
       <div className="relative mx-4 my-4 overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-100 to-emerald-50">
         <div className="relative aspect-square w-full">
           {previewUrl ? (
@@ -87,7 +86,6 @@ export default function MultiScanView({
         </div>
       </div>
 
-      {/* Item list */}
       <div className="space-y-2 px-4 pb-4">
         {items.map((it, i) => {
           const meta = ACTION_META[it.best_action as ActionType];

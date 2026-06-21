@@ -38,8 +38,6 @@ export default function LoopCard({
       transition={{ type: "spring", stiffness: 220, damping: 26 }}
       className="glass w-full overflow-hidden rounded-3xl border border-emerald-100 shadow-xl"
     >
-      {/* Honest fallback banner — live AI failed, so this is a canned demo card,
-          NOT a real analysis of the uploaded photo. */}
       {scan.source === "mock-fallback" && (
         <div className="border-b border-amber-200 bg-amber-100 px-5 py-2.5 text-xs text-amber-900">
           <span className="font-bold">⚠️ Live AI unavailable.</span> This is a demo card,
@@ -47,8 +45,6 @@ export default function LoopCard({
         </div>
       )}
 
-      {/* Disambiguation — the photo shows several items. Don't guess silently:
-          let the user pick which one they meant, or retake with just one. */}
       {others.length > 0 && (
         <div className="border-b border-sky-200 bg-sky-50 px-5 py-3">
           <p className="text-xs font-semibold text-sky-900">
@@ -81,7 +77,6 @@ export default function LoopCard({
         </div>
       )}
 
-      {/* Header */}
       <div className="flex gap-4 border-b border-zinc-100 p-5">
         {previewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -108,7 +103,6 @@ export default function LoopCard({
         </div>
       </div>
 
-      {/* Transparency line */}
       <div
         className={`mx-5 mt-4 rounded-2xl border p-3 ${
           matched ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"
@@ -120,10 +114,8 @@ export default function LoopCard({
         </p>
       </div>
 
-      {/* Item review — specify what it is + condition, then re-score with AI */}
       <ItemReview card={card} refining={refining} onRefine={onRefine} />
 
-      {/* Top stats */}
       <div className="grid grid-cols-2 gap-px bg-zinc-100">
         <div className="bg-white p-3 text-center">
           <div className="text-[11px] uppercase tracking-wide text-zinc-400">CO₂ saved</div>
@@ -139,7 +131,6 @@ export default function LoopCard({
         </div>
       </div>
 
-      {/* Action hierarchy */}
       <motion.div
         className="space-y-3 p-5"
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.08, delayChildren: 0.12 } } }}
@@ -240,7 +231,6 @@ export default function LoopCard({
         })}
       </motion.div>
 
-      {/* Alternatives nudge (bin verdict) */}
       {isBin && card.alternatives.length > 0 && (
         <div className="mx-5 mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-semibold text-amber-900">💡 Next time, buy circular</p>
@@ -255,7 +245,6 @@ export default function LoopCard({
         </div>
       )}
 
-      {/* Urban mining */}
       {(card.recoverable_materials?.summary || card.recoverable_materials?.est_value_eur > 0) && (
         <div className="mx-5 mb-3 rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3">
           <p className="text-sm font-semibold text-yellow-900">
@@ -270,7 +259,6 @@ export default function LoopCard({
         </div>
       )}
 
-      {/* DPP + recyclability footer */}
       <div className="border-t border-zinc-100 bg-zinc-50 px-5 py-4 text-xs text-zinc-500">
         <p>{card.recyclability_note}</p>
         <p className="mt-2">
@@ -314,7 +302,6 @@ const CONDITION_OPTIONS: { key: "working" | "partial" | "broken"; label: string;
   { key: "broken", label: "Broken", emoji: "🔧" },
 ];
 
-// Context-aware "what's broken" quick-picks, chosen from the item's category.
 function damageChips(name: string, material: string): string[] {
   const s = `${name} ${material}`.toLowerCase();
   if (/(phone|smartphone|iphone|laptop|macbook|tablet|computer|keyboard|mouse|electronic|li-ion|akku|battery)/.test(s))
@@ -330,8 +317,6 @@ function damageChips(name: string, material: string): string[] {
   return ["Damaged", "Missing part", "Not working", "Wear and tear", "Dirty"];
 }
 
-// Reusable review step (single- AND multi-scan via drill-in): specify the exact
-// item + its condition, then re-score with the AI.
 function ItemReview({
   card,
   refining,
@@ -523,7 +508,6 @@ function TradeInPanel({
           type="button"
           onClick={() => {
             setState("accepted");
-            // Record the routed GMV + Reloop margin so the dashboards move live.
             fetch("/api/tradein/accept", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -598,7 +582,7 @@ function ListingPanel({
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      /* ignore */
+      setCopied(false);
     }
   }
 

@@ -1,7 +1,3 @@
-// The Loop Card contract — single source of truth shared by the prompt, the
-// structured-output schema, and the UI. Keep the TS types and the JSON schema
-// in sync; the live model is constrained to this exact shape.
-
 export type ActionType = "repair" | "resell" | "donate" | "recycle" | "bin";
 
 export const ACTION_ORDER: ActionType[] = [
@@ -14,11 +10,8 @@ export const ACTION_ORDER: ActionType[] = [
 
 export interface CircularAction {
   type: ActionType;
-  /** Concrete, locale-aware instruction for this route. */
   instructions: string;
-  /** 1 = trivial, 5 = hard. */
   effort_1to5: number;
-  /** Local specifics (bin colour, take-back point, repair resource). */
   local_hint: string;
 }
 
@@ -30,7 +23,6 @@ export interface ResaleEstimate {
 export interface DppFields {
   material: string;
   recyclability: string;
-  /** Estimated recycled content, percent. */
   est_recycled_content_pct: number;
 }
 
@@ -40,9 +32,7 @@ export interface Alternative {
 }
 
 export interface RecoverableMaterials {
-  /** Short, honest summary of valuable materials inside (urban mining). */
   summary: string;
-  /** Rough recoverable raw-material value in EUR (often small but the point is the fact). */
   est_value_eur: number;
 }
 
@@ -50,31 +40,19 @@ export interface LoopCard {
   item_name: string;
   material: string;
   brand_model_guess: string;
-  /** 0 = destroyed, 10 = like new. */
   condition_score: number;
-  /** Best-first along the EU waste hierarchy. The first entry is the verdict. */
   circular_actions: CircularAction[];
   resale_estimate_eur: ResaleEstimate;
   co2_saved_kg: number;
   recyclability_note: string;
-  /** Only meaningful when the verdict is `bin` — buy-circular suggestions. */
   alternatives: Alternative[];
-  /** "Urban mining" — valuable materials locked inside the item. */
   recoverable_materials: RecoverableMaterials;
   dpp_fields: DppFields;
-  /** Transparency: are the figures AI guesses, or matched to a known model/spec? */
   data_basis: "ai_estimate" | "model_matched";
-  /** One-line explanation of where the figures come from. */
   data_note: string;
-  /** Other distinct items also visible in the photo (single-scan disambiguation).
-   *  Empty when the photo shows just one item. */
   other_items_detected: string[];
 }
 
-// JSON Schema for OpenAI structured outputs (response_format json_schema, strict).
-// Strict mode requires: all properties listed in `required`, and
-// `additionalProperties: false`. Numeric/length constraints are NOT supported
-// and are intentionally omitted.
 export const LOOP_CARD_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,

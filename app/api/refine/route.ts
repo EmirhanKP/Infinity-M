@@ -53,7 +53,7 @@ export async function POST(request: Request) {
   const result = await refineLoopCard({ imageBase64, rule, mediaType, correction, currentCard });
   const card = withDraftDpp(result.card);
   const source = result.source;
-  const scan = await addScan(sessionId, card, rule.code);
+  const scan = await addScan(sessionId, card);
 
   const links: Record<string, ReturnType<typeof dealLinksFor>> = {};
   for (const action of card.circular_actions) {

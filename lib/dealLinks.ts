@@ -1,15 +1,8 @@
 import type { ActionType } from "./ai/loopcard";
-
-// Deterministic, no-LLM deep links per action. Templated search URLs are reliable
-// and good enough for a demo; affiliate/referral params attach here.
+import type { DeepLink } from "./clientTypes";
 
 const VINTED_AFFILIATE = process.env.AFFILIATE_VINTED_ID;
 const BACKMARKET_AFFILIATE = process.env.AFFILIATE_BACKMARKET_ID;
-
-export interface DeepLink {
-  label: string;
-  url: string;
-}
 
 function q(s: string): string {
   return encodeURIComponent(s.trim());

@@ -1,6 +1,3 @@
-// Hardcoded demo ruleset. One city is enough to make local_hint concrete and
-// citeable on stage; productionizes to a per-municipality config/API later.
-
 export interface MunicipalityRule {
   code: string;
   name: string;

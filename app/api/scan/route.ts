@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const scan = await addScan(sessionId, card, rule.code);
+  const scan = await addScan(sessionId, card);
 
   const links: Record<string, ReturnType<typeof dealLinksFor>> = {};
   for (const action of card.circular_actions) {

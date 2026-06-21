@@ -2,8 +2,6 @@
 
 import { useRef, useState } from "react";
 
-// 1x1 transparent PNG — used by the demo quick-pick buttons, which drive the
-// mock by `hint` and don't need a real photo.
 const PLACEHOLDER_PNG =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
@@ -39,13 +37,7 @@ async function downscaleToJpegBase64(file: File, maxEdge = 1024): Promise<{ base
   return { base64: dataUrl.split(",")[1], previewUrl: dataUrl };
 }
 
-export default function CameraCapture({
-  onCapture,
-  busy,
-}: {
-  onCapture: (c: Capture) => void;
-  busy: boolean;
-}) {
+export default function CameraCapture({ onCapture }: { onCapture: (c: Capture) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<ScanMode>("single");
@@ -63,36 +55,43 @@ export default function CameraCapture({
 
   return (
     <div className="w-full">
-      {/* Mode toggle */}
-      <div className="mx-auto mb-4 flex w-fit rounded-full bg-emerald-100 p-1 text-sm font-semibold">
+      <div className="mb-3 grid grid-cols-2 rounded-2xl bg-emerald-100 p-1 text-sm font-semibold">
         <button
+          type="button"
           onClick={() => setMode("single")}
-          className={`rounded-full px-4 py-1.5 transition ${mode === "single" ? "bg-white text-emerald-800 shadow" : "text-emerald-700/70"}`}
+          aria-pressed={mode === "single"}
+          className={`rounded-xl px-4 py-2 transition ${mode === "single" ? "bg-white text-emerald-900 shadow-sm" : "text-emerald-800/70"}`}
         >
-          Single item
+          One item
         </button>
         <button
+          type="button"
           onClick={() => setMode("pile")}
-          className={`rounded-full px-4 py-1.5 transition ${mode === "pile" ? "bg-white text-emerald-800 shadow" : "text-emerald-700/70"}`}
+          aria-pressed={mode === "pile"}
+          className={`rounded-xl px-4 py-2 transition ${mode === "pile" ? "bg-white text-emerald-900 shadow-sm" : "text-emerald-800/70"}`}
         >
-          🗄️ Whole pile
+          Several items
         </button>
       </div>
 
       <button
         type="button"
-        disabled={busy}
         onClick={() => fileRef.current?.click()}
-        className="group relative flex w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-emerald-300 bg-white/70 px-6 py-12 text-center shadow-sm transition hover:border-emerald-400 hover:bg-white disabled:opacity-60"
+        className="group relative flex w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-emerald-300 bg-white/90 px-6 py-10 text-center shadow-sm transition hover:border-emerald-500 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
       >
-        <span className="text-5xl transition group-hover:scale-110">📸</span>
-        <span className="text-lg font-semibold text-emerald-900">
-          {mode === "pile" ? "Snap your whole pile" : "Snap an item"}
+        <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 text-4xl transition group-hover:scale-105">
+          📸
         </span>
-        <span className="max-w-xs text-sm text-emerald-700/80">
+        <span className="text-lg font-bold text-emerald-950">
+          {mode === "pile" ? "Photograph several items" : "Take or choose a photo"}
+        </span>
+        <span className="max-w-xs text-sm leading-relaxed text-zinc-600">
           {mode === "pile"
-            ? "One photo of a drawer, table or pile — the AI detects and triages every item at once."
-            : "Take or upload a photo — your camera turns clutter into a circular-economy decision in ~3 seconds."}
+            ? "Use one clear photo of a drawer, table or pile. You can review every detected item separately."
+            : "For the most accurate result, show one item clearly and include any visible brand or model name."}
+        </span>
+        <span className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-sm">
+          Open camera or files
         </span>
       </button>
       <input
@@ -107,19 +106,18 @@ export default function CameraCapture({
       {error && <p className="mt-3 text-center text-sm text-red-600">{error}</p>}
 
       <div className="mt-6">
-        <p className="mb-2 text-center text-xs font-medium uppercase tracking-wide text-emerald-700/70">
-          or try a demo {mode === "pile" ? "pile" : "prop"}
+        <p className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          No photo ready? Try an example
         </p>
         {mode === "pile" ? (
           <button
             type="button"
-            disabled={busy}
             onClick={() =>
               onCapture({ imageBase64: PLACEHOLDER_PNG, mediaType: "image/png", previewUrl: "", hint: "pile", mode: "pile" })
             }
-            className="flex w-full items-center justify-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50 disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
           >
-            🗄️ Scan a full junk drawer (5 items)
+            🗄️ Try a five-item drawer
           </button>
         ) : (
           <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
@@ -127,11 +125,10 @@ export default function CameraCapture({
               <button
                 key={p.hint}
                 type="button"
-                disabled={busy}
                 onClick={() =>
                   onCapture({ imageBase64: PLACEHOLDER_PNG, mediaType: "image/png", previewUrl: "", hint: p.hint, mode: "single" })
                 }
-                className="flex shrink-0 items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-50 disabled:opacity-60"
+                className="flex shrink-0 items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-50"
               >
                 <span>{p.emoji}</span>
                 {p.label}

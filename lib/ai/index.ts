@@ -9,8 +9,6 @@ import {
   mockRepairStep,
   mockResale,
   mockAsk,
-  type RepairStepResult,
-  type ResaleGrounding,
 } from "./mock";
 import {
   liveLoopCard,
@@ -22,10 +20,15 @@ import {
   liveResale,
   liveAsk,
 } from "./live";
-import type { MultiScanItem, ListingResult, PartResult, AskResult } from "../clientTypes";
+import type {
+  AskResult,
+  ListingResult,
+  MultiScanItem,
+  PartResult,
+  RepairStepResult,
+  ResaleGrounding,
+} from "../clientTypes";
 
-// "mock" runs fully offline with no API key (default). "live" calls OpenAI and
-// falls back to mock on any error so a flaky network never breaks the demo.
 export const AI_MODE = (process.env.RELOOP_AI_MODE || "mock").toLowerCase();
 export const IS_LIVE = AI_MODE === "live";
 
@@ -44,8 +47,6 @@ export async function getLoopCard(
   mediaType: string,
   hint?: string | null,
 ): Promise<ScanResult> {
-  // A `hint` means a demo quick-pick prop — always serve the deterministic
-  // known-good card, even in live mode, so stage demos never depend on network.
   if (hint) {
     await sleep(2000);
     return { card: mockLoopCard(imageBase64, rule, hint), source: "mock" };
@@ -59,7 +60,7 @@ export async function getLoopCard(
       return { card: mockLoopCard(imageBase64, rule, hint), source: "mock-fallback" };
     }
   }
-  await sleep(2200); // match the snap -> card animation beat
+  await sleep(2200);
   return { card: mockLoopCard(imageBase64, rule, hint), source: "mock" };
 }
 

@@ -2,8 +2,6 @@ import { recordTradeIn } from "@/lib/store";
 
 export const runtime = "nodejs";
 
-// Records an accepted instant-buyback so the dashboards reflect real GMV +
-// Reloop revenue. Fire-and-forget from the LoopCard.
 export async function POST(request: Request) {
   let body: {
     itemName?: string;

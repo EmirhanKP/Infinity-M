@@ -19,8 +19,6 @@ import { celebrate } from "@/lib/haptics";
 import type { ScanChoiceResponse, ScanResponse, SingleScanResponse, StreakValues } from "@/lib/clientTypes";
 import type { ActionType, LoopCard as LoopCardData } from "@/lib/ai/loopcard";
 
-// Synthesize a minimal Loop Card from a multi-scan item so /api/refine has a
-// currentCard to work from when we drill a pile item into the full single view.
 function multiItemToCard(item: MultiItem): LoopCardData {
   return {
     item_name: item.label,
@@ -78,6 +76,18 @@ interface MultiState {
   items: MultiItem[];
   source: string;
   municipality: string;
+}
+
+interface ConfirmResponse {
+  streak: StreakValues;
+  confirm: { pointsAwarded: number };
+}
+
+async function readJson<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+  return response.json() as Promise<T>;
 }
 
 function historyStorageKey(sessionId: string): string {
@@ -193,7 +203,7 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ imageBase64: c.imageBase64, mediaType: c.mediaType, sessionId, hint: c.hint }),
         });
-        const json = await res.json();
+        const json = await readJson<MultiState>(res);
         setMulti({ items: json.items, source: json.source, municipality: json.municipality });
         addHistoryItems(json.items.map((item: MultiItem) => historyFromMultiItem(item)));
         setPhase("result-multi");
@@ -203,7 +213,7 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ imageBase64: c.imageBase64, mediaType: c.mediaType, sessionId, hint: c.hint }),
         });
-        const json = (await res.json()) as SingleScanResponse;
+        const json = await readJson<SingleScanResponse>(res);
         if (json.kind === "choose-item") {
           setSingleChoice(json);
           setPhase("choose-item");
@@ -226,14 +236,13 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId, scanId, actionType, co2SavedKg: co2 }),
       });
-      const json = await res.json();
+      const json = await readJson<ConfirmResponse>(res);
       const gained = json.streak.loopPoints - streak.loopPoints;
       setStreak(json.streak);
       showToast(`+${gained > 0 ? gained : json.confirm.pointsAwarded} Loop Points`);
     } catch {
       showToast("Saved locally");
     } finally {
-      // Celebrate the loop being closed — confetti + a haptic triple-tap.
       celebrate();
       setCheering(true);
     }
@@ -254,7 +263,7 @@ export default function Home() {
           currentCard: scan.card,
         }),
       });
-      const json = (await res.json()) as ScanResponse;
+      const json = await readJson<ScanResponse>(res);
       setScan(json);
       addHistoryItems([historyFromScan(json)]);
       showToast("Refined with your model ✓");
@@ -280,7 +289,7 @@ export default function Home() {
           currentCard: selectedItemToCard(itemName),
         }),
       });
-      const json = (await res.json()) as ScanResponse;
+      const json = await readJson<ScanResponse>(res);
       setScan(json);
       addHistoryItems([historyFromScan(json)]);
       setSingleChoice(null);
@@ -293,8 +302,6 @@ export default function Home() {
     }
   }
 
-  // Drill a pile item into the full single Loop Card (re-analyzed live, focused
-  // on that one item) so each multi item gets the same rich options + review.
   async function openMultiItem(item: MultiItem) {
     setPhase("scanning");
     try {
@@ -309,7 +316,7 @@ export default function Home() {
           currentCard: multiItemToCard(item),
         }),
       });
-      const json = (await res.json()) as ScanResponse;
+      const json = await readJson<ScanResponse>(res);
       setScan(json);
       addHistoryItems([historyFromScan(json)]);
       setCameFromMulti(true);
@@ -341,9 +348,8 @@ export default function Home() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 px-4 py-5">
-      {/* Header */}
-      <header className="flex items-center justify-between">
+    <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-5 px-4 py-5">
+      <header className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <Logo className="h-10 w-10" />
           <div>
@@ -351,7 +357,7 @@ export default function Home() {
             <p className="text-xs text-[#101817]/60">Snap it. Score it. Loop it.</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <nav aria-label="Main navigation" className="flex flex-wrap justify-end gap-1.5">
           <Link
             href="/learn"
             className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
@@ -362,31 +368,50 @@ export default function Home() {
             href="/dashboard"
             className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
           >
-            B2B →
+            Insights
           </Link>
           <Link
             href="/brand"
             className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
           >
-            Brands
+            For brands
           </Link>
-        </div>
+        </nav>
       </header>
 
-      <button onClick={() => setShowTranslator(true)} className="w-full text-left">
-        <StreakBanner streak={streak} />
-        <p className="mt-1 text-center text-[10px] text-emerald-700/60">tap to see what that really means →</p>
-      </button>
-
-      {/* Body */}
       <div className="flex flex-1 flex-col items-center justify-center">
         <AnimatePresence mode="wait">
           {phase === "scan" && (
             <motion.div key="scan" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
-              <CameraCapture onCapture={handleCapture} busy={false} />
+              <section className="mb-4 text-center">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Start here</p>
+                <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-[#101817]">
+                  What should you do with it?
+                </h2>
+                <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-zinc-600">
+                  Take one photo. Reloop identifies the item and gives you the clearest next step:
+                  repair, resell, donate or recycle.
+                </p>
+              </section>
+              <CameraCapture onCapture={handleCapture} />
               <div className="mt-4">
                 <MiniHistory items={history} />
               </div>
+              <button
+                type="button"
+                onClick={() => setShowTranslator(true)}
+                className="mt-4 w-full rounded-3xl text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+                aria-label="Open your impact details"
+              >
+                <div className="mb-2 flex items-center justify-between px-1">
+                  <div>
+                    <p className="text-sm font-bold text-[#101817]">Your impact</p>
+                    <p className="text-xs text-zinc-500">Tap for real-world comparisons</p>
+                  </div>
+                  <span className="text-sm font-semibold text-emerald-700">View details →</span>
+                </div>
+                <StreakBanner streak={streak} />
+              </button>
             </motion.div>
           )}
 
@@ -446,10 +471,8 @@ export default function Home() {
         </AnimatePresence>
       </div>
 
-      {/* Celebration confetti */}
       {cheering && <Confetti onDone={() => setCheering(false)} />}
 
-      {/* Reward toast */}
       <AnimatePresence>
         {toast && (
           <motion.div
@@ -463,7 +486,6 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* Repair coach */}
       {repairFor && (
         <RepairCoach
           itemName={repairFor}
@@ -475,7 +497,6 @@ export default function Home() {
         />
       )}
 
-      {/* Impact translator (tangible equivalences) */}
       {showTranslator && (
         <ImpactTranslator
           streak={streak}
@@ -487,11 +508,10 @@ export default function Home() {
         />
       )}
 
-      {/* Shareable impact card */}
       {showImpact && <ImpactCard streak={streak} onClose={() => setShowImpact(false)} />}
 
       <footer className="pt-2 text-center text-[10px] text-emerald-700/50">
-        Reloop · circular-economy AI · SDG 12 / 13 / 11
+        Reloop · Snap it. Score it. Loop it.
       </footer>
     </div>
   );

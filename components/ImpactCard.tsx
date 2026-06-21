@@ -4,8 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import type { StreakValues } from "@/lib/clientTypes";
 
-// Renders a shareable square impact card on a canvas (no external deps) and
-// offers download / native share.
 export default function ImpactCard({ streak, onClose }: { streak: StreakValues; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [preview, setPreview] = useState<string>("");
@@ -19,7 +17,6 @@ export default function ImpactCard({ streak, onClose }: { streak: StreakValues; 
     canvas.width = S;
     canvas.height = S;
 
-    // background gradient — brand charcoal green
     const g = ctx.createLinearGradient(0, 0, S, S);
     g.addColorStop(0, "#101817");
     g.addColorStop(1, "#16352a");
@@ -28,7 +25,7 @@ export default function ImpactCard({ streak, onClose }: { streak: StreakValues; 
 
     ctx.textAlign = "center";
 
-    ctx.fillStyle = "#55E6A5"; // electric mint
+    ctx.fillStyle = "#55E6A5";
     ctx.font = "700 64px sans-serif";
     ctx.fillText("reloop", S / 2, 150);
     ctx.font = "400 34px sans-serif";
@@ -76,7 +73,8 @@ export default function ImpactCard({ streak, onClose }: { streak: StreakValues; 
         return;
       }
     } catch {
-      /* fall through to download */
+      download();
+      return;
     }
     download();
   }

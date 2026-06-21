@@ -4,7 +4,6 @@ export default function Logo({
   className = "h-8 w-8",
 }: {
   className?: string;
-  color?: string;
 }) {
   return (
     <Image

@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-// Reusable animated number. Eases from the previous value to the new one with a
-// cubic ease-out whenever `value` changes — makes every stat feel alive.
 export default function CountUp({
   value,
   decimals = 0,

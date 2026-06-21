@@ -26,10 +26,9 @@ export async function POST(request: Request) {
   const rule = getMunicipality(municipality);
   const { items, source } = await getMultiScan(imageBase64, rule, mediaType, hint);
 
-  // Persist each detected item so it counts on the dashboard and has a DPP id.
   const enriched: (MultiScanItem & { links: ReturnType<typeof dealLinksFor> })[] = [];
   for (const item of items) {
-    const rec = await addScanLite(sessionId, item, rule.code);
+    const rec = await addScanLite(sessionId, item);
     enriched.push({ ...item, scanId: rec.id, links: dealLinksFor(item.best_action, item.label) });
   }
 

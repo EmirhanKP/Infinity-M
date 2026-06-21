@@ -114,6 +114,7 @@ export default function RepairCoach({
               {feedback.observation}
             </p>
             <p className="mt-1 text-sm text-zinc-600">{feedback.next_instruction}</p>
+            <p className="mt-2 text-xs font-medium text-emerald-700">{feedback.encouragement}</p>
             <button
               onClick={advance}
               className="mt-3 w-full rounded-full bg-emerald-600 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"

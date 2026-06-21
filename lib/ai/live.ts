@@ -1,26 +1,26 @@
 import OpenAI from "openai";
 import type { LoopCard } from "./loopcard";
 import { ACTION_ORDER, LOOP_CARD_JSON_SCHEMA, SCAN_SYSTEM_PROMPT, buildScanUserText } from "./loopcard";
-import type { RepairStepResult, ResaleGrounding } from "./mock";
-import type { MultiScanItem, ListingResult, PartResult, AskResult } from "../clientTypes";
+import type {
+  AskResult,
+  ListingResult,
+  MultiScanItem,
+  PartResult,
+  RepairStepResult,
+  ResaleGrounding,
+} from "../clientTypes";
 import type { MunicipalityRule } from "../municipality";
 import { municipalityBlock } from "../municipality";
 
-// Model selection (overridable per env). gpt-5.4-mini is multimodal (vision),
-// supports strict structured outputs + the web_search tool, and is ~3x cheaper
-// than gpt-5.4. Bump RELOOP_SCAN_MODEL=gpt-5.4 if the hero scan ever
-// misidentifies a real photo on stage.
 const SCAN_MODEL = process.env.RELOOP_SCAN_MODEL || "gpt-5.4-mini";
 const REPAIR_MODEL = process.env.RELOOP_REPAIR_MODEL || "gpt-5.4-mini";
 const RESALE_MODEL = process.env.RELOOP_RESALE_MODEL || SCAN_MODEL;
 
-// Low reasoning effort keeps the structured calls fast + cheap; the tasks are
-// perception/extraction, not deep reasoning.
 const REASONING_EFFORT = "low";
 
 let _client: OpenAI | null = null;
 function client(): OpenAI {
-  if (!_client) _client = new OpenAI(); // reads OPENAI_API_KEY
+  if (!_client) _client = new OpenAI();
   return _client;
 }
 
@@ -28,9 +28,6 @@ function dataUrl(imageBase64: string, mediaType: string): string {
   return `data:${mediaType};base64,${imageBase64}`;
 }
 
-// A structured (json_schema) chat completion with an image. OpenAI strict mode
-// needs `additionalProperties: false` + every key in `required`, which our
-// schemas already satisfy, so they are drop-in.
 async function structuredVisionCall<T>(opts: {
   model: string;
   schemaName: string;
@@ -68,7 +65,6 @@ async function structuredVisionCall<T>(opts: {
   return JSON.parse(msg.content) as T;
 }
 
-// A structured text-only chat completion (no image).
 async function structuredTextCall<T>(opts: {
   model: string;
   schemaName: string;
@@ -97,9 +93,6 @@ async function structuredTextCall<T>(opts: {
   return JSON.parse(msg.content) as T;
 }
 
-// Live web search via the Responses API web_search tool. Returns the model's
-// grounded prose; a follow-up structured call then extracts strict JSON. (Search
-// + strict JSON are split into two steps so citations and schema don't collide.)
 async function webSearch(model: string, instructions: string, input: string): Promise<string> {
   const params: Record<string, unknown> = {
     model,
@@ -373,8 +366,6 @@ const RESALE_SCHEMA = {
   },
 } as const;
 
-// Confidence-gated resale grounding: web search for live comps, then a small
-// structured call extracts a tightened band + cited links.
 export async function liveResale(itemName: string, conditionNote: string): Promise<ResaleGrounding> {
   const findings = await webSearch(
     RESALE_MODEL,

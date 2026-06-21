@@ -20,7 +20,6 @@ export interface DashboardData {
     recycledContentPct: number;
     confidence: "ai_estimated" | "document_backed";
   }[];
-  recentItems: { itemName: string; bestActionType: ActionType; co2SavedKg: number }[];
 }
 
 export interface BrandPassportData {
@@ -98,7 +97,6 @@ export interface MultiScanItem {
   label: string;
   material: string;
   condition_score: number;
-  /** Normalized 0..1 box over the source image. */
   box: { x: number; y: number; w: number; h: number };
   best_action: ActionType;
   instruction: string;
@@ -106,11 +104,6 @@ export interface MultiScanItem {
   co2_saved_kg: number;
   resale_low: number;
   resale_high: number;
-}
-
-export interface MultiScanResult {
-  items: MultiScanItem[];
-  source: "live" | "mock" | "mock-fallback";
 }
 
 export interface ListingResult {
@@ -137,10 +130,7 @@ export interface TradeInQuote {
   instantOfferEur: number;
   sellYourselfLow: number;
   sellYourselfHigh: number;
-  /** Mid-market value the partner settles at — basis for Reloop's margin. */
   marketValueEur: number;
-  serviceFeePct: number;
-  /** Reloop's gross revenue on this single transaction (the business case). */
   reloopMarginEur: number;
   note: string;
 }

@@ -92,7 +92,6 @@ export default function Learn() {
         </Link>
       </header>
 
-      {/* Emotional intro */}
       <section className="rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-600 p-6 text-white shadow-lg">
         <p className="text-lg font-semibold leading-snug">
           Every year we throw away mountains of things that still had value — and most of it was never broken.
@@ -104,7 +103,6 @@ export default function Learn() {
         </p>
       </section>
 
-      {/* Key facts */}
       <h2 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-400">The numbers</h2>
       <div className="grid grid-cols-2 gap-3">
         {FACTS.map((f) => (
@@ -118,7 +116,6 @@ export default function Learn() {
         ))}
       </div>
 
-      {/* How Reloop works */}
       <h2 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-400">How Reloop works</h2>
       <div className="space-y-2">
         {STEPS.map((s) => (
@@ -138,11 +135,9 @@ export default function Learn() {
         </p>
       </div>
 
-      {/* Ask the science */}
       <h2 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-400">Ask the science</h2>
       <AskBox />
 
-      {/* Watch */}
       <h2 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-400">Watch</h2>
       <div className="space-y-2">
         {VIDEOS.map((v) => (
@@ -162,7 +157,6 @@ export default function Learn() {
         ))}
       </div>
 
-      {/* Read */}
       <h2 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-400">Read</h2>
       <div className="space-y-2">
         {READS.map((r) => (

@@ -3,9 +3,6 @@
 import { useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 
-// Lightweight confetti burst — no dependency, pure framer-motion. Mount it when
-// you want a celebration; it fires once and calls onDone so the parent can
-// unmount it.
 const COLORS = ["#55E6A5", "#2fd08c", "#16b377", "#facc15", "#38bdf8", "#fb7185"];
 
 function seededUnit(seed: number): number {
@@ -18,7 +15,7 @@ export default function Confetti({ onDone, count = 80 }: { onDone?: () => void; 
     () =>
       Array.from({ length: count }, (_, i) => ({
         id: i,
-        x: (seededUnit(i + 1) - 0.5) * 2 * 48, // vw spread, both directions
+        x: (seededUnit(i + 1) - 0.5) * 2 * 48,
         rot: seededUnit(i + 2) * 720 - 360,
         delay: seededUnit(i + 3) * 0.15,
         duration: 1.6 + seededUnit(i + 4) * 1.1,

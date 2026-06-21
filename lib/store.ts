@@ -1,11 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type { ActionType, LoopCard } from "./ai/loopcard";
-import type { MultiScanItem } from "./clientTypes";
-
-// Lightweight JSON-file store. Zero native deps, runs anywhere, and gives the
-// B2B dashboard real aggregates from real scans. Swap for Postgres/Prisma later
-// by re-implementing this module's functions.
+import type { BrandDashboardData, DashboardData, MultiScanItem } from "./clientTypes";
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "reloop.json");
@@ -21,8 +17,6 @@ export interface ScanRecord {
   resaleLowEur: number;
   resaleHighEur: number;
   co2SavedKg: number;
-  recyclabilityNote: string;
-  municipalityCode: string;
   dppMaterial: string;
   dppRecyclability: string;
   dppRecycledContentPct: number;
@@ -50,8 +44,6 @@ export interface StreakRecord {
   lastActionAt: number;
 }
 
-// An accepted instant-buyback. Records the money flowing through Reloop so the
-// dashboards can show Routed GMV + Reloop revenue, not just CO₂.
 export interface TradeInRecord {
   id: string;
   createdAt: number;
@@ -62,8 +54,6 @@ export interface TradeInRecord {
   reloopMarginEur: number;
 }
 
-// A passport ISSUED by a brand/manufacturer through the B2B console. Unlike the
-// consumer scan draft, this is document-backed — the paid, compliance-grade DPP.
 export interface BrandPassport {
   id: string;
   createdAt: number;
@@ -74,7 +64,7 @@ export interface BrandPassport {
   material: string;
   recyclability: string;
   recycledContentPct: number;
-  repairabilityIndex: number; // 0-10, drives EPR eco-modulation
+  repairabilityIndex: number;
 }
 
 interface DbShape {
@@ -85,8 +75,6 @@ interface DbShape {
   tradeIns?: TradeInRecord[];
 }
 
-// Seed so the dashboard looks alive on first load (anonymized aggregate feed)
-// and the demo streak shows a believable running total.
 function seed(): DbShape {
   const now = Date.now();
   const day = 86_400_000;
@@ -111,15 +99,12 @@ function seed(): DbShape {
     resaleLowEur: 0,
     resaleHighEur: 0,
     co2SavedKg: s.co2SavedKg!,
-    recyclabilityNote: "",
-    municipalityCode: "munich",
     dppMaterial: s.dppMaterial!,
     dppRecyclability: s.dppRecyclability!,
     dppRecycledContentPct: s.dppRecycledContentPct!,
     recoverableValueEur: 0,
     recoverableSummary: "",
   }));
-  // A few accepted buybacks so the dashboard shows live GMV + revenue on load.
   const tradeIns: TradeInRecord[] = [
     { id: "seed-ti-0", createdAt: now - day, itemName: "iPhone 12", category: "Electronics", instantOfferEur: 165, marketValueEur: 230, reloopMarginEur: 65 },
     { id: "seed-ti-1", createdAt: now - 2 * day, itemName: "Bluetooth speaker", category: "Electronics", instantOfferEur: 28, marketValueEur: 41, reloopMarginEur: 13 },
@@ -132,7 +117,6 @@ function seed(): DbShape {
     confirms: [],
     tradeIns,
     streaks: {
-      // a believable demo streak for the home banner
       "demo-seed": {
         sessionId: "demo-seed",
         loopPoints: 480,
@@ -170,11 +154,7 @@ function id(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${counter}`;
 }
 
-export async function addScan(
-  sessionId: string,
-  card: LoopCard,
-  municipalityCode: string,
-): Promise<ScanRecord> {
+export async function addScan(sessionId: string, card: LoopCard): Promise<ScanRecord> {
   const db = await load();
   const best = card.circular_actions[0]?.type ?? "recycle";
   const rec: ScanRecord = {
@@ -188,8 +168,6 @@ export async function addScan(
     resaleLowEur: card.resale_estimate_eur.low,
     resaleHighEur: card.resale_estimate_eur.high,
     co2SavedKg: card.co2_saved_kg,
-    recyclabilityNote: card.recyclability_note,
-    municipalityCode,
     dppMaterial: card.dpp_fields.material,
     dppRecyclability: card.dpp_fields.recyclability,
     dppRecycledContentPct: card.dpp_fields.est_recycled_content_pct,
@@ -204,7 +182,6 @@ export async function addScan(
 export async function addScanLite(
   sessionId: string,
   item: MultiScanItem,
-  municipalityCode: string,
 ): Promise<ScanRecord> {
   const db = await load();
   const rec: ScanRecord = {
@@ -218,8 +195,6 @@ export async function addScanLite(
     resaleLowEur: item.resale_low,
     resaleHighEur: item.resale_high,
     co2SavedKg: item.co2_saved_kg,
-    recyclabilityNote: item.instruction,
-    municipalityCode,
     dppMaterial: item.material,
     dppRecyclability: "AI-estimated",
     dppRecycledContentPct: 0,
@@ -252,7 +227,6 @@ export async function confirmAction(args: {
 }): Promise<{ confirm: ConfirmRecord; streak: StreakRecord }> {
   const db = await load();
   const points = POINTS[args.actionType] ?? 20;
-  // Reward keeping material in use: diverting from the bin counts as waste diverted.
   const wasteDivertedKg = args.actionType === "bin" ? 0 : 0.4;
   const confirm: ConfirmRecord = {
     id: id("confirm"),
@@ -286,7 +260,6 @@ function bumpStreak(
     existing.lastActionAt = Date.now();
     return existing;
   }
-  // New users inherit the demo seed total so the banner never starts at zero on stage.
   const base = db.streaks["demo-seed"];
   const fresh: StreakRecord = {
     sessionId,
@@ -313,24 +286,6 @@ export async function getStreak(sessionId: string): Promise<StreakRecord> {
       lastActionAt: Date.now(),
     }
   );
-}
-
-export interface DashboardData {
-  totalScans: number;
-  totalCo2SavedKg: number;
-  totalWasteDivertedKg: number;
-  routedGmvEur: number;
-  reloopRevenueEur: number;
-  actionBreakdown: { type: ActionType; count: number; share: number }[];
-  materialFlow: { material: string; count: number; avgRecycledContentPct: number }[];
-  sampleDpp: {
-    itemName: string;
-    material: string;
-    recyclability: string;
-    recycledContentPct: number;
-    confidence: "ai_estimated" | "document_backed";
-  }[];
-  recentItems: { itemName: string; bestActionType: ActionType; co2SavedKg: number }[];
 }
 
 export async function getDashboard(): Promise<DashboardData> {
@@ -373,11 +328,6 @@ export async function getDashboard(): Promise<DashboardData> {
       confidence: (i === 0 ? "document_backed" : "ai_estimated") as "ai_estimated" | "document_backed",
     }));
 
-  const recentItems = scans
-    .slice(-6)
-    .reverse()
-    .map((r) => ({ itemName: r.itemName, bestActionType: r.bestActionType, co2SavedKg: r.co2SavedKg }));
-
   return {
     totalScans,
     totalCo2SavedKg: totalCo2,
@@ -387,14 +337,11 @@ export async function getDashboard(): Promise<DashboardData> {
     actionBreakdown,
     materialFlow,
     sampleDpp,
-    recentItems,
   };
 }
 
 function bucketMaterial(m: string): string {
   const s = m.toLowerCase();
-  // Order matters: multi-material items (a phone is "aluminium + glass + li-ion")
-  // should bucket by their defining material, so check electronics first.
   if (s.includes("li-ion") || s.includes("electronic") || s.includes("copper")) return "Electronics / e-waste";
   if (s.includes("cotton") || s.includes("textile") || s.includes("wool")) return "Textiles";
   if (s.includes("wood")) return "Wood";
@@ -409,8 +356,6 @@ function bucketMaterial(m: string): string {
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
-
-// ── Trade-in revenue ────────────────────────────────────────────────────────
 
 export async function recordTradeIn(input: {
   itemName: string;
@@ -434,8 +379,6 @@ export async function recordTradeIn(input: {
   await persist();
   return rec;
 }
-
-// ── B2B: brand DPP issuance + end-of-life intelligence ──────────────────────
 
 const REUSE_ACTIONS: ActionType[] = ["repair", "resell", "donate"];
 
@@ -473,27 +416,7 @@ export async function getBrandPassportById(passportId: string): Promise<BrandPas
   return db.brandPassports?.find((p) => p.id === passportId) ?? null;
 }
 
-export interface BrandDashboard {
-  issuedCount: number;
-  totalEolEvents: number;
-  materialsTracked: number;
-  routedGmvEur: number;
-  reloopRevenueEur: number;
-  recentPassports: { id: string; brand: string; productName: string; category: string; createdAt: number }[];
-  eolIntelligence: {
-    material: string;
-    events: number;
-    reusePct: number; // repaired/resold/donated — stayed in the loop
-    recyclePct: number;
-    disposedPct: number;
-    avgConditionAtEol: number;
-    avgCo2SavedKg: number;
-  }[];
-}
-
-// The moat: aggregate REAL downstream end-of-life outcomes (from consumer scans)
-// that brands are legally pushed to report (ESPR/EPR) but cannot otherwise see.
-export async function getBrandData(): Promise<BrandDashboard> {
+export async function getBrandData(): Promise<BrandDashboardData> {
   const db = await load();
   const scans = db.scans;
   const passports = db.brandPassports ?? [];

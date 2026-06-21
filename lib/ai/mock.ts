@@ -1,16 +1,17 @@
 import type { LoopCard } from "./loopcard";
 import type { MunicipalityRule } from "../municipality";
-
-// Hand-authored, schema-valid cards. Because the live path is constrained to the
-// same JSON schema, these are drop-in: swapping mock -> live changes nothing in
-// the UI. Keyed by a demo hint so the stage props are 100% deterministic, with a
-// hash fallback so arbitrary photos still feel varied.
+import type {
+  AskResult,
+  ListingResult,
+  MultiScanItem,
+  PartResult,
+  RepairStepResult,
+  ResaleGrounding,
+} from "../clientTypes";
 
 export type DemoKey = "phone" | "charger" | "jar" | "toaster" | "styrofoam";
 
 function localise(rule: MunicipalityRule, card: LoopCard): LoopCard {
-  // Light touch: make the recycle/bin hints reference the active city so the
-  // mock reads as locale-aware (the live model does this properly).
   return {
     ...card,
     circular_actions: card.circular_actions.map((a) => {
@@ -245,7 +246,6 @@ const ORDER: DemoKey[] = ["phone", "charger", "jar", "toaster", "styrofoam"];
 
 function hashPick(imageBase64: string): DemoKey {
   let sum = 0;
-  // Sample across the string so different photos land on different cards.
   for (let i = 0; i < imageBase64.length; i += 997) {
     sum = (sum + imageBase64.charCodeAt(i)) % 100000;
   }
@@ -302,14 +302,6 @@ export function mockRefine(card: LoopCard, correction: string): LoopCard {
   };
 }
 
-export interface RepairStepResult {
-  step_confirmed: boolean;
-  observation: string;
-  next_instruction: string;
-  done: boolean;
-  encouragement: string;
-}
-
 export function mockRepairStep(stepIndex: number, totalSteps: number): RepairStepResult {
   const done = stepIndex >= totalSteps - 1;
   return {
@@ -322,16 +314,6 @@ export function mockRepairStep(stepIndex: number, totalSteps: number): RepairSte
     encouragement: done ? "Repair complete! 🎉" : "You're doing great — keep going.",
   };
 }
-
-export interface ResaleGrounding {
-  low: number;
-  high: number;
-  links: { label: string; url: string }[];
-  note: string;
-}
-
-// ── Multi-item "junk drawer" scan ────────────────────────────────────────
-import type { MultiScanItem, ListingResult, PartResult, AskResult } from "../clientTypes";
 
 export function mockAsk(question: string): AskResult {
   void question;

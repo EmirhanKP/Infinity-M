@@ -97,7 +97,6 @@ export default function ImpactTranslator({
           {fmt(co2)} kg CO₂ &amp; {fmt(waste)} kg waste — made tangible.
         </p>
 
-        {/* Scale selector — the "wow" multiplier */}
         <div className="mt-3 flex gap-1 rounded-full bg-emerald-100 p-1 text-xs font-semibold">
           {SCALES.map((s, i) => (
             <button
@@ -110,7 +109,6 @@ export default function ImpactTranslator({
           ))}
         </div>
 
-        {/* Forest visual */}
         <div className="mt-4 rounded-2xl bg-gradient-to-b from-sky-50 to-emerald-50 p-4">
           <p className="text-center text-sm font-semibold text-emerald-900">
             🌳 {fmt(trees)} trees soaking up CO₂ for a year

@@ -2,9 +2,6 @@
 
 import { motion } from "framer-motion";
 
-// The "AI is analysing" moment. A scan-line sweeps over the captured photo with
-// corner brackets + a shimmer, so the model feels like it's truly *reading* the
-// item. Replaces the old plain ping dot.
 export default function ScanningOverlay({ previewUrl }: { previewUrl: string }) {
   return (
     <div className="flex flex-col items-center gap-5 py-12">
@@ -16,11 +13,9 @@ export default function ScanningOverlay({ previewUrl }: { previewUrl: string }) 
           <div className="flex h-full w-full items-center justify-center bg-emerald-50 text-4xl">📦</div>
         )}
 
-        {/* scan line + shimmer */}
         <div className="scan-line" />
         <div className="shimmer absolute inset-0" />
 
-        {/* corner brackets */}
         <span className="absolute left-2 top-2 h-5 w-5 rounded-tl-lg border-l-2 border-t-2 border-[#55E6A5]" />
         <span className="absolute right-2 top-2 h-5 w-5 rounded-tr-lg border-r-2 border-t-2 border-[#55E6A5]" />
         <span className="absolute bottom-2 left-2 h-5 w-5 rounded-bl-lg border-b-2 border-l-2 border-[#55E6A5]" />

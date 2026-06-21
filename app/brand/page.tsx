@@ -21,7 +21,6 @@ const EMPTY_FORM = {
   repairabilityIndex: 6,
 };
 
-// Static reference + pitch material — the regulatory wave Reloop rides.
 const ESPR_DEADLINES = [
   { category: "Batteries", deadline: "Feb 2027" },
   { category: "Textiles & apparel", deadline: "2027→" },
@@ -54,6 +53,7 @@ export default function BrandConsole() {
   const [issuing, setIssuing] = useState(false);
   const [issued, setIssued] = useState<BrandPassportData | null>(null);
   const [qrId, setQrId] = useState<string | null>(null);
+  const [issueError, setIssueError] = useState<string | null>(null);
 
   function refresh() {
     fetch("/api/brand")
@@ -66,17 +66,19 @@ export default function BrandConsole() {
   async function issue(e: React.FormEvent) {
     e.preventDefault();
     setIssuing(true);
+    setIssueError(null);
     try {
       const res = await fetch("/api/brand", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
+      if (!res.ok) throw new Error("Could not issue passport");
       const json = (await res.json()) as { passport: BrandPassportData };
       setIssued(json.passport);
       refresh();
     } catch {
-      /* ignore */
+      setIssueError("Could not issue the passport. Please check the fields and try again.");
     } finally {
       setIssuing(false);
     }
@@ -116,14 +118,12 @@ export default function BrandConsole() {
         </div>
       </header>
 
-      {/* KPI row */}
       <div className="grid grid-cols-3 gap-3">
         <Kpi label="Passports issued" value={<CountUp value={data?.issuedCount ?? 0} />} accent="text-emerald-700" />
         <Kpi label="End-of-life events" value={<CountUp value={data?.totalEolEvents ?? 0} />} accent="text-teal-700" />
         <Kpi label="Material streams" value={<CountUp value={data?.materialsTracked ?? 0} />} accent="text-sky-700" />
       </div>
 
-      {/* Revenue row — take-back GMV routed through Reloop */}
       <div className="mt-3 grid grid-cols-2 gap-3">
         <div className="glow-mint rounded-2xl border border-emerald-200 bg-white/70 p-4 text-center shadow-sm">
           <div className="text-[11px] uppercase tracking-wide text-zinc-400">Take-back GMV routed</div>
@@ -140,7 +140,6 @@ export default function BrandConsole() {
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">
-        {/* DPP issuance */}
         <Panel title="Issue a Digital Product Passport">
           {issued ? (
             <div className="space-y-3">
@@ -223,11 +222,11 @@ export default function BrandConsole() {
               >
                 {issuing ? "Issuing…" : "Issue passport →"}
               </button>
+              {issueError && <p className="text-sm text-red-600">{issueError}</p>}
             </form>
           )}
         </Panel>
 
-        {/* EOL intelligence — the moat */}
         <Panel title="End-of-life intelligence (Reloop-exclusive)">
           <p className="mb-3 text-xs text-zinc-500">
             What <span className="font-semibold text-zinc-700">actually</span> happens to products downstream — crowdsourced
@@ -257,7 +256,6 @@ export default function BrandConsole() {
         </Panel>
       </div>
 
-      {/* Compliance & EPR */}
       <div className="mt-6">
         <Panel title="Compliance & EPR eco-modulation">
           <div className="grid gap-4 md:grid-cols-2">
@@ -284,7 +282,6 @@ export default function BrandConsole() {
         </Panel>
       </div>
 
-      {/* Revenue model */}
       <div className="mt-6">
         <Panel title="How Reloop charges (revenue model)">
           <div className="grid gap-3 sm:grid-cols-3">
